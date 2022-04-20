@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t openpcdet .
+docker build -t openpcdet:mergim .
