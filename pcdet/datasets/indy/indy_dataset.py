@@ -155,8 +155,8 @@ class KittiDataset(DatasetTemplate):
             pc_info = {'num_features': 4, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
-###            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
-###            info['image'] = image_info
+            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
+            info['image'] = image_info
 ###            calib = self.get_calib(sample_idx)
 
 ###            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
@@ -206,13 +206,12 @@ class KittiDataset(DatasetTemplate):
 ###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
 
 ###                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-###                    pts_fov = points[fov_flag]
+                    pts_fov = points ###points[fov_flag]
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
-###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
-                        flag = box_utils.in_hull(points[:, 0:3], corners_lidar[k])
+                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
 
