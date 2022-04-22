@@ -481,5 +481,5 @@ if __name__ == '__main__':
             dataset_cfg=dataset_cfg,
             class_names=['Car', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'indy',
-            save_path=ROOT_DIR / 'data' / 'kitti'
+            save_path=ROOT_DIR / 'data' / 'indy_safe'
         )
