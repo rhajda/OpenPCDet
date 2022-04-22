@@ -193,9 +193,7 @@ class KittiDataset(DatasetTemplate):
 ###                loc_lidar = calib.rect_to_lidar(loc)
                 l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
 ###                loc_lidar[:, 2] += h[:, 0] / 2
-                loc[:, 2] += h[:, 0] / 2
-###                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
-                gt_boxes_lidar = np.concatenate([loc, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)                
+###                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)               
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
@@ -206,13 +204,13 @@ class KittiDataset(DatasetTemplate):
 ###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
 
 ###                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-                    pts_fov = points[:, 0:3] ###points[fov_flag]
+###                    pts_fov = points[fov_flag]
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
 ###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
-                        flag = box_utils.in_hull(pts_fov, corners_lidar[k])
+                        flag = box_utils.in_hull(points, corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
 
