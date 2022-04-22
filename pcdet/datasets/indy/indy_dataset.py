@@ -191,9 +191,10 @@ class KittiDataset(DatasetTemplate):
                 dims = annotations['dimensions'][:num_objects]
                 rots = annotations['rotation_y'][:num_objects]
 ###                loc_lidar = calib.rect_to_lidar(loc)
+		loc_lidar = loc
                 l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-###                loc_lidar[:, 2] += h[:, 0] / 2
-###                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)               
+                loc_lidar[:, 2] += h[:, 0] / 2
+                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)               
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
