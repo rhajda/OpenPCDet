@@ -1,5 +1,6 @@
 import copy
 import pickle
+
 import numpy as np
 from skimage import io
 
@@ -60,7 +61,7 @@ class KittiDataset(DatasetTemplate):
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
     def get_lidar(self, idx):
-        lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)  ###('%s.bin' % idx)
+        lidar_file = self.root_split_path / 'velodyne' / ('%s.bin' % idx)
         assert lidar_file.exists()
         return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
 
@@ -155,18 +156,18 @@ class KittiDataset(DatasetTemplate):
             pc_info = {'num_features': 4, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
-###            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
-###            info['image'] = image_info
-###            calib = self.get_calib(sample_idx)
+            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
+            info['image'] = image_info
+            calib = self.get_calib(sample_idx)
 
-###            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
-###            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
-###            R0_4x4[3, 3] = 1.
-###            R0_4x4[:3, :3] = calib.R0
-###            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0)
-###            calib_info = {'P2': P2, 'R0_rect': R0_4x4, 'Tr_velo_to_cam': V2C_4x4}
+            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
+            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
+            R0_4x4[3, 3] = 1.
+            R0_4x4[:3, :3] = calib.R0
+            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0)
+            calib_info = {'P2': P2, 'R0_rect': R0_4x4, 'Tr_velo_to_cam': V2C_4x4}
 
-###            info['calib'] = calib_info
+            info['calib'] = calib_info
 
             if has_label:
                 obj_list = self.get_label(sample_idx)
@@ -190,29 +191,26 @@ class KittiDataset(DatasetTemplate):
                 loc = annotations['location'][:num_objects]
                 dims = annotations['dimensions'][:num_objects]
                 rots = annotations['rotation_y'][:num_objects]
-###                loc_lidar = calib.rect_to_lidar(loc)
+                loc_lidar = calib.rect_to_lidar(loc)
                 l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-###                loc_lidar[:, 2] += h[:, 0] / 2
-                loc[:, 2] += h[:, 0] / 2
-###                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
-                gt_boxes_lidar = np.concatenate([loc, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)                
+                loc_lidar[:, 2] += h[:, 0] / 2
+                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
 
                 if count_inside_pts:
                     points = self.get_lidar(sample_idx)
-###                    calib = self.get_calib(sample_idx)
-###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
+                    calib = self.get_calib(sample_idx)
+                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
 
-###                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-                    pts_fov = points[:, 0:3] ###points[fov_flag]
+                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
+                    pts_fov = points[fov_flag]
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
-###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
-                        flag = box_utils.in_hull(pts_fov, corners_lidar[k])
+                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
 
@@ -378,13 +376,13 @@ class KittiDataset(DatasetTemplate):
         info = copy.deepcopy(self.kitti_infos[index])
 
         sample_idx = info['point_cloud']['lidar_idx']
-###        img_shape = info['image']['image_shape']
-###        calib = self.get_calib(sample_idx)
+        img_shape = info['image']['image_shape']
+        calib = self.get_calib(sample_idx)
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
 
         input_dict = {
             'frame_id': sample_idx,
-###            'calib': calib,
+            'calib': calib,
         }
 
         if 'annos' in info:
@@ -409,10 +407,9 @@ class KittiDataset(DatasetTemplate):
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
             if self.dataset_cfg.FOV_POINTS_ONLY:
-###                pts_rect = calib.lidar_to_rect(points[:, 0:3])
-###                fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
-###                points = points[fov_flag]
-                points = points[:, 0:3]
+                pts_rect = calib.lidar_to_rect(points[:, 0:3])
+                fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
+                points = points[fov_flag]
             input_dict['points'] = points
 
         if "images" in get_item_list:
@@ -482,5 +479,5 @@ if __name__ == '__main__':
             dataset_cfg=dataset_cfg,
             class_names=['Car', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'data' / 'indy',
-            save_path=ROOT_DIR / 'data' / 'indy '
+            save_path=ROOT_DIR / 'data' / 'indy'
         )
