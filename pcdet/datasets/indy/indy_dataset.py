@@ -211,7 +211,8 @@ class KittiDataset(DatasetTemplate):
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
-                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
+###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
+                        flag = box_utils.in_hull(pts_fov, corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
 
