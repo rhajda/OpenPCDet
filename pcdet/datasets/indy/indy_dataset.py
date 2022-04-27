@@ -1,6 +1,7 @@
 import copy
 import pickle
 import numpy as np
+import open3d as o3d
 from skimage import io
 
 from . import kitti_utils
@@ -62,7 +63,7 @@ class KittiDataset(DatasetTemplate):
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
         assert lidar_file.exists()
-        return np.fromfile(str(lidar_file), dtype=np.float64).reshape(-1, 6)
+        return np.asarray(o3d.io.read_point_cloud(filename, format="pcd").points)
 
     def get_image(self, idx):
         """
