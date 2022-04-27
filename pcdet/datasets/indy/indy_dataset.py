@@ -62,7 +62,7 @@ class KittiDataset(DatasetTemplate):
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
         assert lidar_file.exists()
-        return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
+        return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 6)
 
     def get_image(self, idx):
         """
@@ -200,6 +200,7 @@ class KittiDataset(DatasetTemplate):
                 info['annos'] = annotations
 
                 if count_inside_pts:
+                    print(sample_idx)
                     points = self.get_lidar(sample_idx)
 ###                    calib = self.get_calib(sample_idx)
 ###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
