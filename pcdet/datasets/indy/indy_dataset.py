@@ -62,7 +62,7 @@ class KittiDataset(DatasetTemplate):
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
         assert lidar_file.exists()
-        return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 7)
+        return np.fromfile(str(lidar_file), dtype=np.float64).reshape(-1, 6)
 
     def get_image(self, idx):
         """
