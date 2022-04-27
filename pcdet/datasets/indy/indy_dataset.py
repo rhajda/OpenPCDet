@@ -63,7 +63,7 @@ class KittiDataset(DatasetTemplate):
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
         assert lidar_file.exists()
-        return np.asarray(o3d.io.read_point_cloud(lidar_file, format="pcd").points)
+        return np.asarray(o3d.io.read_point_cloud(str(lidar_file), format="pcd").points)
 
     def get_image(self, idx):
         """
