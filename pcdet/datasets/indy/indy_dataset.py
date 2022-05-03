@@ -10,7 +10,7 @@ from ...utils import box_utils, calibration_kitti, common_utils, object3d_kitti
 from ..dataset import DatasetTemplate
 
 
-class KittiDataset(DatasetTemplate):
+class IndyDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
         """
         Args:
@@ -194,7 +194,7 @@ class KittiDataset(DatasetTemplate):
 ###                loc_lidar = calib.rect_to_lidar(loc)
                 loc_lidar = loc
                 l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                loc_lidar[:, 2] += h[:, 0] / 2
+                loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
                 gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)               
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
