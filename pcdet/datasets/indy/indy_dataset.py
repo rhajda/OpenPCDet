@@ -34,7 +34,7 @@ class IndyDataset(DatasetTemplate):
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
-            self.logger.info('Loading KITTI dataset')
+            self.logger.info('Loading Indy dataset')
         kitti_infos = []
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
@@ -48,7 +48,7 @@ class IndyDataset(DatasetTemplate):
         self.kitti_infos.extend(kitti_infos)
 
         if self.logger is not None:
-            self.logger.info('Total samples for KITTI dataset: %d' % (len(kitti_infos)))
+            self.logger.info('Total samples for Indy dataset: %d' % (len(kitti_infos)))
 
     def set_split(self, split):
         super().__init__(
@@ -430,8 +430,8 @@ class IndyDataset(DatasetTemplate):
         return data_dict
 
 
-def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
-    dataset = KittiDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
+def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
+    dataset = IndyDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
     train_split, val_split = 'train', 'val'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
@@ -453,15 +453,15 @@ def create_kitti_infos(dataset_cfg, class_names, data_path, save_path, workers=4
         pickle.dump(kitti_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
 
-    with open(trainval_filename, 'wb') as f:
-        pickle.dump(kitti_infos_train + kitti_infos_val, f)
-    print('Kitti info trainval file is saved to %s' % trainval_filename)
-
-    dataset.set_split('test')
-    kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
-    with open(test_filename, 'wb') as f:
-        pickle.dump(kitti_infos_test, f)
-    print('Kitti info test file is saved to %s' % test_filename)
+    # with open(trainval_filename, 'wb') as f:
+    #     pickle.dump(kitti_infos_train + kitti_infos_val, f)
+    # print('Kitti info trainval file is saved to %s' % trainval_filename)
+    #
+    # dataset.set_split('test')
+    # kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
+    # with open(test_filename, 'wb') as f:
+    #     pickle.dump(kitti_infos_test, f)
+    # print('Kitti info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
     dataset.set_split(train_split)
@@ -478,9 +478,9 @@ if __name__ == '__main__':
         from easydict import EasyDict
         dataset_cfg = EasyDict(yaml.safe_load(open(sys.argv[2])))
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
-        create_kitti_infos(
+        create_indy_infos(
             dataset_cfg=dataset_cfg,
-            class_names=['Car', 'Pedestrian', 'Cyclist'],
+            class_names=['Car'],
             data_path=ROOT_DIR / 'data' / 'indy',
             save_path=ROOT_DIR / 'data' / 'indy'
         )
