@@ -4,78 +4,70 @@ import shutil
 
 
 ####
+pcd = False  # copy point clouds or labels
+src_dataset = ""
+dst_dataset = "real"
+extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data"
 ####
-srcpath = '\simulation\01_no_noise\pcd_sim_noise_001\train\label'
-savepath = '\for_training\sim_no_noise\label_2'
-data_typ = '.txt'     # for labels use '.txt' and for point clouds use '.pcd'
-####
-####
 
+if pcd:
+    srcpath = os.path.join(src_dataset, "pcd_valid")
+    savepath = os.path.join("for_training", dst_dataset, "velodyne")
+    data_type = '.pcd'
+else:
+    srcpath = os.path.join(src_dataset, "label_valid")
+    savepath = os.path.join("for_training", dst_dataset, "label_2")
+    data_type = '.txt'
 
-src_day1 = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data\20211209' + data
-src_day2 = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data\20211210' + data
-src_day3 = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data\20220103' + data
-src_day4 = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data\20220106' + data
-src_day5 = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data\20220107' + data
+# Source data path for each day
+src_day1 = os.path.join(extracted_data_path, "20211209", srcpath)
+src_day2 = os.path.join(extracted_data_path, "20211210", srcpath)
+src_day3 = os.path.join(extracted_data_path, "20220103", srcpath)
+src_day4 = os.path.join(extracted_data_path, "20220106", srcpath)
+src_day5 = os.path.join(extracted_data_path, "20220107", srcpath)
 
-#Download the pointclouds of each day
-os.chdir(src_day1)
-filesday1 = os.listdir()
-os.chdir(src_day2)
-filesday2 = os.listdir()
-os.chdir(src_day3)
-filesday3 = os.listdir()
-os.chdir(src_day4)
-filesday4 = os.listdir()
-os.chdir(src_day5)
-filesday5 = os.listdir()
+# List of all files for each day
+filesday1 = os.listdir(src_day1)
+filesday2 = os.listdir(src_day2)
+filesday3 = os.listdir(src_day3)
+filesday4 = os.listdir(src_day4)
+filesday5 = os.listdir(src_day5)
+files_num_total = len(filesday1) + len(filesday2) + len(filesday3) + len(filesday4) + len(filesday5)
 
-#Training
-num = 0
-src = src_day1 + srcpath + '\0'
-dst = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data' + savepath + '\0'
+# Move files from each day to "training" folder
+src_num = 0
+dst_num = 0
 for file in filesday1:
-    numstr = str(num).zfill(5)
-    shutil.copyfile(src = src + numstr + data_typ, dst = dst + numstr + data_typ)
-    num = num + 1
+    print(f"{dst_num} / {files_num_total}")
+    shutil.copyfile(src=os.path.join(src_day1, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
+    src_num += 1
+    dst_num += 1
 
-num = 0
-new_num = num + len(filesday1)
-src = src_day2 + srcpath + '\0'
-dst = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data' + savepath + '\0'
+src_num = 0
 for file in filesday2:
-    numstr = str(num).zfill(5)
-    new_numstr = str(new_num).zfill(5)
-    shutil.copyfile(src = src + numstr + data_typ, dst = dst + new_numstr + data_typ)
-    num = num + 1
-    new_num = new_num + 1
+    print(f"{dst_num} / {files_num_total}")
+    shutil.copyfile(src=os.path.join(src_day2, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
+    src_num += 1
+    dst_num += 1
 
-num = 0
-src = src_day3 + srcpath + '\0'
-dst = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data' + savepath + '\0'
+src_num = 0
 for file in filesday3:
-    numstr = str(num).zfill(5)
-    new_numstr = str(new_num).zfill(5)
-    shutil.copyfile(src = src + numstr + data_typ, dst = dst + new_numstr + data_typ)
-    num = num + 1
-    new_num = new_num + 1
+    print(f"{dst_num} / {files_num_total}")
+    shutil.copyfile(src=os.path.join(src_day3, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
+    src_num += 1
+    dst_num += 1
 
-num = 0
-src = src_day4 + srcpath + '\0'
-dst = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data' + savepath + '\0'
+src_num = 0
 for file in filesday4:
-    numstr = str(num).zfill(5)
-    new_numstr = str(new_num).zfill(5)
-    shutil.copyfile(src = src + numstr + data_typ, dst = dst + new_numstr + data_typ)
-    num = num + 1
-    new_num = new_num + 1
+    print(f"{dst_num} / {files_num_total}")
+    shutil.copyfile(src=os.path.join(src_day4, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
+    src_num += 1
+    dst_num += 1
 
-num = 0
-src = src_day5 + srcpath + '\0'
-dst = r'Z:\13_Vegas_Challenge\03_Data\02_Real\00_extracted_data' + savepath + '\0'
+src_num = 0
 for file in filesday5:
-    numstr = str(num).zfill(5)
-    new_numstr = str(new_num).zfill(5)
-    shutil.copyfile(src = src + numstr + data_typ, dst = dst + new_numstr + data_typ)
-    num = num + 1
-    new_num = new_num + 1
+    print(f"{dst_num} / {files_num_total}")
+    shutil.copyfile(src=os.path.join(src_day5, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
+    src_num += 1
+    dst_num += 1
+
