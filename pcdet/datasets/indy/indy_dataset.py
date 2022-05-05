@@ -472,7 +472,7 @@ def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4)
 
 if __name__ == '__main__':
     import sys
-    if sys.argv.__len__() > 1 and sys.argv[1] == 'create_kitti_infos':
+    if sys.argv.__len__() > 1 and sys.argv[1] == 'create_indy_infos':
         import yaml
         from pathlib import Path
         from easydict import EasyDict
