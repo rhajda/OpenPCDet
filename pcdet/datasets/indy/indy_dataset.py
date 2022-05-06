@@ -177,7 +177,7 @@ class IndyDataset(DatasetTemplate):
                 annotations['occluded'] = np.array([obj.occlusion for obj in obj_list])
                 annotations['alpha'] = np.array([obj.alpha for obj in obj_list])
                 annotations['bbox'] = np.concatenate([obj.box2d.reshape(1, 4) for obj in obj_list], axis=0)
-                annotations['dimensions'] = np.array([[obj.l, obj.h, obj.w] for obj in obj_list])  # lhw(camera) format
+                annotations['dimensions'] = np.array([[obj.l, obj.w, obj.h] for obj in obj_list])  # lwh (LIDAR!) format
                 annotations['location'] = np.concatenate([obj.loc.reshape(1, 3) for obj in obj_list], axis=0)
                 annotations['rotation_y'] = np.array([obj.ry for obj in obj_list])
                 annotations['score'] = np.array([obj.score for obj in obj_list])
@@ -193,7 +193,7 @@ class IndyDataset(DatasetTemplate):
                 rots = annotations['rotation_y'][:num_objects]
 ###                loc_lidar = calib.rect_to_lidar(loc)
                 loc_lidar = loc
-                l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
+                l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]  # from kitti format!
                 #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
                 gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)               
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
