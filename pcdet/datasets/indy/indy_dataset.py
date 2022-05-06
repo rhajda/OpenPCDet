@@ -153,7 +153,7 @@ class IndyDataset(DatasetTemplate):
         def process_single_scene(sample_idx):
             print('%s sample_idx: %s' % (self.split, sample_idx))
             info = {}
-            pc_info = {'num_features': 4, 'lidar_idx': sample_idx}
+            pc_info = {'num_features': 3, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
 ###            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
@@ -193,9 +193,9 @@ class IndyDataset(DatasetTemplate):
                 rots = annotations['rotation_y'][:num_objects]
 ###                loc_lidar = calib.rect_to_lidar(loc)
                 loc_lidar = loc
-                l, h, w = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
-                loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
-                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, -(np.pi / 2 + rots[..., np.newaxis])], axis=1)               
+                l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]
+                #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
+                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)               
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
@@ -309,12 +309,14 @@ class IndyDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            calib = batch_dict['calib'][batch_index]
-            image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
-            pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
-            pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
-                pred_boxes_camera, calib, image_shape=image_shape
-            )
+            #calib = batch_dict['calib'][batch_index]
+            #image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
+            #pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
+            pred_boxes_camera = np.concatenate([pred_boxes[:, :6], np.expand_dims(pred_boxes[:, 6], axis=-1)], axis=-1)
+            #pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
+            #    pred_boxes_camera, calib, image_shape=image_shape
+            #)
+            pred_boxes_img = np.zeros(shape=(pred_scores.shape[0], 4))
 
             pred_dict['name'] = np.array(class_names)[pred_labels - 1]
             pred_dict['alpha'] = -np.arctan2(-pred_boxes[:, 1], pred_boxes[:, 0]) + pred_boxes_camera[:, 6]
@@ -393,7 +395,9 @@ class IndyDataset(DatasetTemplate):
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-            gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
+            #gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
+            gt_boxes_lidar = np.concatenate([gt_boxes_camera[:, :6], np.expand_dims(gt_boxes_camera[:, 6], axis=-1)], axis=-1)
+
 
             input_dict.update({
                 'gt_names': gt_names,
@@ -426,7 +430,7 @@ class IndyDataset(DatasetTemplate):
 
         data_dict = self.prepare_data(data_dict=input_dict)
 
-        data_dict['image_shape'] = img_shape
+        #data_dict['image_shape'] = img_shape
         return data_dict
 
 
