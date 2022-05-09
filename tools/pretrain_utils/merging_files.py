@@ -5,18 +5,21 @@ import shutil
 
 ####
 pcd = False  # copy point clouds or labels
-src_dataset = ""  # "" for real or "simulation/01_no_noise" / "simulation/02_noise_002" / "simulation/03_noise_005" for sim
-dst_dataset = "real"
+src_dataset = ""  # "" for real
+                  # "simulation/01_no_noise/pcd_sim_no_noise/train" for sim OR
+                  # "simulation/02_noise_002/pcd_sim_noise_002/train" for sim OR
+                  # "simulation/03_noise_005/pcd_sim_noise_005/train" for sim
+dst_dataset = "real"  # "real" or "sim_no_noise" or "sim_noise_002" or "sim_noise_005"
 extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data"
 ####
 
 if pcd:
-    srcpath = os.path.join(src_dataset, "pcd_valid")
+    srcpath = os.path.join(src_dataset, "pcd_valid")  # pcd_valid for real, pcl for sim
     savepath = os.path.join("for_training", dst_dataset, "velodyne")
     os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.pcd'
 else:
-    srcpath = os.path.join(src_dataset, "label_valid")
+    srcpath = os.path.join(src_dataset, "label_valid")  # label_valid for real, label for sim
     savepath = os.path.join("for_training", dst_dataset, "label_2")
     os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.txt'
