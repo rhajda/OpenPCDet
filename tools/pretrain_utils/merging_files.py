@@ -5,7 +5,7 @@ import shutil
 
 ####
 pcd = False  # copy point clouds or labels
-src_dataset = ""
+src_dataset = ""  # "" for real or "simulation/01_no_noise" / "simulation/02_noise_002" / "simulation/03_noise_005" for sim
 dst_dataset = "real"
 extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data"
 ####
@@ -20,19 +20,15 @@ else:
     data_type = '.txt'
 
 # Source data path for each day
-src_day1 = os.path.join(extracted_data_path, "20211209", srcpath)
-src_day2 = os.path.join(extracted_data_path, "20211210", srcpath)
-src_day3 = os.path.join(extracted_data_path, "20220103", srcpath)
-src_day4 = os.path.join(extracted_data_path, "20220106", srcpath)
-src_day5 = os.path.join(extracted_data_path, "20220107", srcpath)
+src_day1 = os.path.join(extracted_data_path, "20220103", srcpath)
+src_day2 = os.path.join(extracted_data_path, "20220106", srcpath)
+src_day3 = os.path.join(extracted_data_path, "20220107", srcpath)
 
 # List of all files for each day
 filesday1 = os.listdir(src_day1)
 filesday2 = os.listdir(src_day2)
 filesday3 = os.listdir(src_day3)
-filesday4 = os.listdir(src_day4)
-filesday5 = os.listdir(src_day5)
-files_num_total = len(filesday1) + len(filesday2) + len(filesday3) + len(filesday4) + len(filesday5)
+files_num_total = len(filesday1) + len(filesday2) + len(filesday3)
 
 # Move files from each day to "training" folder
 src_num = 0
@@ -56,18 +52,3 @@ for file in filesday3:
     shutil.copyfile(src=os.path.join(src_day3, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
     src_num += 1
     dst_num += 1
-
-src_num = 0
-for file in filesday4:
-    print(f"{dst_num} / {files_num_total}")
-    shutil.copyfile(src=os.path.join(src_day4, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
-    src_num += 1
-    dst_num += 1
-
-src_num = 0
-for file in filesday5:
-    print(f"{dst_num} / {files_num_total}")
-    shutil.copyfile(src=os.path.join(src_day5, str(src_num).zfill(6) + data_type), dst=os.path.join(extracted_data_path, savepath, str(dst_num).zfill(6) + data_type))
-    src_num += 1
-    dst_num += 1
-
