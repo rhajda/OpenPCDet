@@ -6,8 +6,8 @@ import math
 
 
 # Directions to the point clouds
-path_to_point_clouds = r"C:\Users\gima-\Desktop\pythonProject1\velodyne"
-path_to_downsampled_point_clouds = r"C:\Users\gima-\Desktop\pythonProject1\sim_no_noise_downsampled"
+path_to_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/sim_no_noise/training/velodyne"
+path_to_downsampled_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/sim_no_noise_downsampled/training/velodyne"
 
 # Counting all pointclouds
 initial_count = 0
@@ -19,6 +19,7 @@ print('initial_count:', initial_count)
 
 # Load saved point cloud
 for i in range(0, initial_count):
+    print(f"{i}/{initial_count}")
     pointcloud = str(i).zfill(6)
     datatyp = ".pcd"
     pointcloud = pointcloud + datatyp
