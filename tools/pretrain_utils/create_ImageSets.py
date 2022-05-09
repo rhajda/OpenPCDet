@@ -6,17 +6,18 @@ import sys
 try:
     dir = sys.argv[1]
 except IndexError:
-    dir = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/real/label_2"
+    dir = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/sim_noise_002/training/label_2"
 dist = 0.8
 step = 5
 
-initial_count = min(50000, len(os.listdir(dir)))
+initial_count = min(35000, len(os.listdir(dir)))
 print(f"Total files {initial_count}")
 
 # Distribution of the data
 train_size = dist * initial_count
 train_size = int(train_size)
 print(f"Undownsampled training size (80% of total size) {train_size}")
+print(f"Undownsampled validation size (20% of total size) {initial_count - train_size}")
 
 train_list = [str(idx).zfill(6) for idx in np.arange(0, train_size, step)]
 validation_list = [str(idx).zfill(6) for idx in np.arange(int(train_list[-1]) + step, initial_count, step)]
