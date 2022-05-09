@@ -13,10 +13,12 @@ extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data
 if pcd:
     srcpath = os.path.join(src_dataset, "pcd_valid")
     savepath = os.path.join("for_training", dst_dataset, "velodyne")
+    os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.pcd'
 else:
     srcpath = os.path.join(src_dataset, "label_valid")
     savepath = os.path.join("for_training", dst_dataset, "label_2")
+    os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.txt'
 
 # Source data path for each day
