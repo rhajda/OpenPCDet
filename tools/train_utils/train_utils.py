@@ -139,10 +139,13 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             # Evaluate epoch
             model.eval()
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
-            ret_dict, val_loss = eval_utils.eval_one_epoch(
+            ret_dict, val_loss_list = eval_utils.eval_one_epoch(
                 cfg, model, test_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
                 result_dir=cur_result_dir, get_val_loss=True
             )
+            val_losses = [loss[0].item() for loss in val_loss_list]
+            val_loss_avg = sum(val_losses) / len(val_losses)
+            tb_log.add_scalar('eval/val_loss', val_loss_avg, cur_epoch)
             model.train()
 
 

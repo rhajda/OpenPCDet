@@ -731,6 +731,7 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
             # ret_dict['%s_image/moderate' % class_to_name[curcls]] = mAPbbox[j, 1, 0]
             # ret_dict['%s_image/hard' % class_to_name[curcls]] = mAPbbox[j, 2, 0]
 
+            ret_dict[f"{str(class_to_name[curcls])}_3d/{str(i)}_R11"] = mAP3d[j, 0, i]
             ret_dict[f"{str(class_to_name[curcls])}_3d/{str(i)}_R40"] = mAP3d_R40[j, 0, i]
             '''
             ret_dict['%s_3d/moderate_R40' % class_to_name[curcls]] = mAP3d_R40[j, 1, 0]

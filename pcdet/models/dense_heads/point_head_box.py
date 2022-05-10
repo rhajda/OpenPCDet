@@ -109,6 +109,9 @@ class PointHeadBox(PointHeadTemplate):
             batch_dict['batch_box_preds'] = point_box_preds
             batch_dict['batch_index'] = batch_dict['point_coords'][:, 0]
             batch_dict['cls_preds_normalized'] = False
+            targets_dict = self.assign_targets(batch_dict)
+            ret_dict['point_cls_labels'] = targets_dict['point_cls_labels']
+            ret_dict['point_box_labels'] = targets_dict['point_box_labels']
 
         self.forward_ret_dict = ret_dict
 
