@@ -19,7 +19,8 @@ def statistics_info(cfg, ret_dict, metric, disp_dict):
         '(%d, %d) / %d' % (metric['recall_roi_%s' % str(min_thresh)], metric['recall_rcnn_%s' % str(min_thresh)], metric['gt_num'])
 
 
-def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, save_to_file=False, result_dir=None):
+def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, save_to_file=False, result_dir=None,
+                   get_val_loss=False):
     result_dir.mkdir(parents=True, exist_ok=True)
 
     final_output_dir = result_dir / 'final_result' / 'data'
@@ -51,12 +52,14 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
     start_time = time.time()
-    ret_dict_tot = list()
+    val_loss = list()
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
             pred_dicts, ret_dict = model(batch_dict)
-        ret_dict_tot.append(ret_dict)
+            if get_val_loss:
+                loss, tb_dict, disp_dict = model.get_training_loss()
+                val_loss.append([loss, tb_dict, disp_dict])
         disp_dict = {}
 
         statistics_info(cfg, ret_dict, metric, disp_dict)
@@ -120,7 +123,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
 
     logger.info('Result is save to %s' % result_dir)
     logger.info('****************Evaluation done.*****************')
-    return ret_dict, ret_dict_tot
+    return ret_dict, val_loss
 
 
 if __name__ == '__main__':
