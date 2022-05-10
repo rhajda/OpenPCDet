@@ -139,7 +139,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             # Evaluate epoch
             model.eval()
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
-            ret_dict = eval_utils.eval_one_epoch(
+            ret_dict, ret_dict_tot = eval_utils.eval_one_epoch(
                 cfg, model, test_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
                 result_dir=cur_result_dir
             )
