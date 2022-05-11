@@ -538,7 +538,7 @@ def eval_class(gt_annos,
                     idx += num_part
                 for i in range(len(thresholds)):
                     recall[m, l, k, i] = pr[i, 0] / (pr[i, 0] + pr[i, 2])
-                    precision[m, l, k, i] = pr[i, 0] / (pr[i, 0] + pr[i, 1])
+                    precision[m, l, k, i] = pr[i, 0] / (pr[i, 0] + pr[i, 1] + np.finfo(np.float64).eps)  # avoid zerodiv
                     if compute_aos:
                         aos[m, l, k, i] = pr[i, 3] / (pr[i, 0] + pr[i, 1])
                 for i in range(len(thresholds)):
