@@ -12,13 +12,14 @@ from ..model_utils import model_nms_utils
 
 
 class Detector3DTemplate(nn.Module):
-    def __init__(self, model_cfg, num_class, dataset):
+    def __init__(self, model_cfg, num_class, dataset, eval=False):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.class_names
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
+        self.eval = eval
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
@@ -151,7 +152,7 @@ class Detector3DTemplate(nn.Module):
             model_cfg=self.model_cfg.POINT_HEAD,
             input_channels=num_point_features,
             num_class=self.num_class if not self.model_cfg.POINT_HEAD.CLASS_AGNOSTIC else 1,
-            predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False)
+            predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False), eval=self.eval
         )
 
         model_info_dict['module_list'].append(point_head_module)
