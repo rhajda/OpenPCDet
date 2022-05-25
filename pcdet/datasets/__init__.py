@@ -10,6 +10,8 @@ from .nuscenes.nuscenes_dataset import NuScenesDataset
 from .waymo.waymo_dataset import WaymoDataset
 from .pandaset.pandaset_dataset import PandasetDataset
 from .lyft.lyft_dataset import LyftDataset
+from .indy.indy_dataset import IndyDataset
+
 
 __all__ = {
     'DatasetTemplate': DatasetTemplate,
@@ -17,7 +19,8 @@ __all__ = {
     'NuScenesDataset': NuScenesDataset,
     'WaymoDataset': WaymoDataset,
     'PandasetDataset': PandasetDataset,
-    'LyftDataset': LyftDataset
+    'LyftDataset': LyftDataset,
+    'IndyDataset': IndyDataset
 }
 
 
