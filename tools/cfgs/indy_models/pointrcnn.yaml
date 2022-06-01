@@ -3,13 +3,13 @@ CLASS_NAMES: ['Car']
 DATA_CONFIG:
     _BASE_CONFIG_: cfgs/dataset_configs/indy_dataset.yaml
 
-    DATA_PROCESSOR:
+    DATA_PROCESSOR: # This overwrites the DAPTA_PROCESSOR given in the 'dataset_configs/indy_dataset'
         -   NAME: mask_points_and_boxes_outside_range
             REMOVE_OUTSIDE_BOXES: True
 
         -   NAME: sample_points
             NUM_POINTS: {
-                'train': 32768,
+                'train': 32768, # original is half # taken from fixed radius!
                 'test': 32768
             }
 
@@ -25,7 +25,7 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2MSG
         SA_CONFIG:
-            NPOINTS: [8192, 2048, 512, 128]
+            NPOINTS: [8192, 2048, 512, 128] # features per point
             RADIUS: [[0.1, 0.5], [0.5, 1.0], [1.0, 2.0], [2.0, 4.0]]
             NSAMPLE: [[16, 32], [16, 32], [16, 32], [16, 32]]
             MLPS: [[[16, 16, 32], [32, 32, 64]],

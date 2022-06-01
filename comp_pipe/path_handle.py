@@ -27,6 +27,12 @@ class PathSingle(EasyDict, metaclass=Singleton):
 
 paths = PathSingle()
 paths.root = (Path(__file__).parent / '../').resolve()
-paths.indy_main = paths.root / 'data/indy'
+paths.indy_main = paths.root / 'data/indy/for_training'
+
 paths.indy_no_noise = paths.indy_main / 'sim_no_noise'
 paths.indy_real = paths.indy_main / 'real'
+
+paths.pipe_results = paths.root / 'comp_pipe/results'
+
+# Target for results: 
+# Result is save to /home/output/cfgs/indy_models/pointrcnn/default/eval/eval_with_train/# epoch_0/val
