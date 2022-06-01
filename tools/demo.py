@@ -72,8 +72,12 @@ def parse_config():
     parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
 
     args = parser.parse_args()
+    
+    # Avoids always using '--ext' when is is clear from the given path
+    if Path(args.data_path).is_file:
+        args.ext = Path(args.data_path).suffix
 
-    cfg_from_yaml_file(args.cfg_file, cfg)
+    cfg_from_yaml_file(args.cfg_filfe, cfg)
 
     return args, cfg
 
