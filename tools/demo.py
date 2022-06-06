@@ -75,9 +75,9 @@ def parse_config():
     
     # Avoids always using '--ext' when is is clear from the given path
     if Path(args.data_path).is_file:
-        args.ext = Path(args.data_path).suffix
+        args.ext = str(Path(args.data_path).suffix)
 
-    cfg_from_yaml_file(args.cfg_filfe, cfg)
+    cfg_from_yaml_file(args.cfg_file, cfg)
 
     return args, cfg
 
