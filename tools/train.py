@@ -4,7 +4,6 @@ import datetime
 import glob
 import os
 from pathlib import Path
-from test import repeat_eval_ckpt
 
 import torch
 import torch.nn as nn
@@ -16,7 +15,7 @@ from pcdet.models import build_network, model_fn_decorator
 from pcdet.utils import common_utils
 from train_utils.optimization import build_optimizer, build_scheduler
 from train_utils.train_utils import train_model
-
+from test_utils.test_utils import repeat_eval_ckpt
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')

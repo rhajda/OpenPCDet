@@ -6,7 +6,7 @@ import tqdm
 import time
 from torch.nn.utils import clip_grad_norm_
 from pcdet.utils import common_utils, commu_utils
-from eval_utils import eval_utils
+from tools.eval_utils import eval_utils
 
 
 def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, accumulated_iter, optim_cfg,
