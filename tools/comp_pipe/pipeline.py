@@ -12,9 +12,9 @@ import os
 import easydict
 from pathlib import Path
 from typing import Tuple
-
-import torch
-import torch.nn as nn
+import numpy as np
+import time
+import random
 
 from tensorboardX import SummaryWriter
 
@@ -41,12 +41,8 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
 
     parser.add_argument('--pretrained_model', type=str, default=None, help='pretrained_model')
-    # parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none') only single GPU as of now
-    # parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
-    # parser.add_argument('--sync_bn', action='store_true', default=False, help='whether to use sync bn')
     parser.add_argument('--fix_random_seed', action='store_true', default=False, help='')
     parser.add_argument('--ckpt_save_interval', type=int, default=1, help='number of training epochs')
-    # parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
     parser.add_argument('--max_ckpt_save_num', type=int, default=30, help='max number of saved checkpoint')
     parser.add_argument('--merge_all_iters_to_one_epoch', action='store_true', default=False, help='')
     parser.add_argument('--set', dest='set_cfgs', default=None, nargs=argparse.REMAINDER,
@@ -60,9 +56,7 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     args = parser.parse_args()
 
     # set data config
-    os.chdir(paths.tools)
     cfg_from_yaml_file(paths.cfg_indy_pointrcnn, cfg)
-    os.chdir(paths.root)
     
     cfg.TAG = Path(args.cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
@@ -82,7 +76,6 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
     assert data_type == "real" or data_type == "simulated"
     args.logger.info(f'**********************Setup datasets and training of {data_type} data:**********************')
     dataset = easydict.EasyDict()
-    os.chdir(paths.tools)
     dataset.train_set, dataset.train_loader, dataset.train_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
@@ -100,7 +93,6 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         batch_size=args.batch_size,
         dist=False, workers=args.workers, logger=args.logger, training=False
     )
-    # os.chdir(paths.root)
     return dataset
     
 def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict) -> None:
@@ -184,9 +176,47 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
+def analyze_data_pairs(dataset_real, dataset_simulated, logger):
+    """_summary_
 
+    :param datset_real: _description_
+    :param dataset_simulated: _description_
+    :param args: _description_
+    """
+    logger.info('**********************Start comparison of data pairs**********************')
+    # check for matching lengths
+    train_len = len(dataset_real.train_set)
+    test_len = len(dataset_real.test_set)
+    assert train_len == len(dataset_simulated.train_set), \
+        'The number of train data pairs in real and simulated dataset should be the same'
+    assert test_len == len(dataset_simulated.test_set), \
+        'The number of test data pairs in real and simulated dataset should be the same'
+    
+    
+    # get some corresponding data pairs
+    test_train_ratio = test_len / train_len
+    test_samples = 1 if int(20 * test_train_ratio) == 0 else int(20 * test_train_ratio)
+    if 0.5 <=test_train_ratio <= 0.9: print('The train test ration seems off.')
+    
+    idxs_train = random.sample(range(0, train_len), k=20-test_samples)
+    idxs_test = random.sample(range(0, test_len), k=test_samples)
+    
+    # Load augmented values:
+    sel_train_r, sel_train_s = [dataset_real.train_set[i] for i in idxs_train], [dataset_simulated.train_set[i] for i in idxs_train]
+    set_test_r, sel_test_s = [dataset_real.test_set[i] for i in idxs_test], [dataset_simulated.test_set[i] for i in idxs_test]
+    
+    # Load real values:
+    
+    
+    # get some metrics on the data:
+    print()
+    # mean
+    # min max 
+    
+    logger.info('**********************End comparison of data pairs**********************')
     
 def main():
+    os.chdir(paths.tools) # directory change makes life easier with path handling later on
     args, cfg = parse_config()
     
     # check the passed parameters:
@@ -219,8 +249,13 @@ def main():
     # load the two datsets:
     # real:
     dataset_real = setup_datasets(args, cfg, data_type="real")
+    print()
     # simulated:
     dataset_sim = setup_datasets(args, cfg, data_type="simulated")
+    
+    # The passed datasets need to be matching i.e. same number of corresponding sampels
+    # analyze & compare datasets:
+    analyze_data_pairs(dataset_real, dataset_sim, args.logger)
     
     # train on real: TODO investigate why we still nee to have: os.chdir(paths.tools)
     execute_training(args, cfg, dataset_real)
@@ -229,7 +264,4 @@ def main():
 
 
 if __name__ == "__main__":
-    t0 = time.time()
-    print("Running...")
     main()
-    print("Time: {:.2f}s".format(time.time() - t0))
