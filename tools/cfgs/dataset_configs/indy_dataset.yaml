@@ -1,5 +1,6 @@
 DATASET: 'IndyDataset'
 DATA_PATH: './../data/indy/for_training/sim_no_noise' # '../data/indy'
+DATA_PATH_REAL: './../data/indy/for_training/real'
 
 POINT_CLOUD_RANGE: [-80, -80, -30, 80, 80, 30]
 

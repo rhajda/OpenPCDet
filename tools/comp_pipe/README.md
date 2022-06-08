@@ -7,3 +7,6 @@ To avoid using absolute paths which make development increasingly difficult when
 
 ### Mount Data
 The data from "davs://webdisk.ads.mwn.de/hcwebdav/TUMW/ftm/Roborace/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/" to "data/indy" within the OpenPcDet working directory.  
+
+### Setting the config files:
+Everything is done as with the original, only that one entry called "DATA_PATH_REAL" is added and needs to be set. This should be used such that the original "DATA_PATH" containes the simulated data and "DATA_PATH_REAL" the real data. 

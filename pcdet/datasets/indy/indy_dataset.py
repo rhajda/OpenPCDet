@@ -431,6 +431,9 @@ class IndyDataset(DatasetTemplate):
         data_dict = self.prepare_data(data_dict=input_dict) # also applied augementation at this position.
 
         # data_dict['image_shape'] = img_shape
+        index_from_data_dict = int(data_dict['frame_id']) // 5 # TODO: have to be same
+        index_from_input_dict = int(input_dict['frame_id']) // 5
+        assert index * 5 == int(data_dict['frame_id'])
         return data_dict
 
 
