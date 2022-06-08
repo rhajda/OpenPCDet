@@ -191,7 +191,7 @@ class IndyDataset(DatasetTemplate):
                 loc = annotations['location'][:num_objects]
                 dims = annotations['dimensions'][:num_objects]
                 rots = annotations['rotation_y'][:num_objects]
-###                loc_lidar = calib.rect_to_lidar(loc)
+                # loc_lidar = calib.rect_to_lidar(loc)
                 loc_lidar = loc
                 l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]  # from kitti format!
                 #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
@@ -428,9 +428,9 @@ class IndyDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
-        data_dict = self.prepare_data(data_dict=input_dict)
+        data_dict = self.prepare_data(data_dict=input_dict) # also applied augementation at this position.
 
-        #data_dict['image_shape'] = img_shape
+        # data_dict['image_shape'] = img_shape
         return data_dict
 
 
