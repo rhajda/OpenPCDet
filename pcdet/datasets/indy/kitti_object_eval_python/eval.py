@@ -682,16 +682,17 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
         # mAP threshold array: [num_minoverlap, metric, class]
         # mAP result: [num_class, num_diff, num_minoverlap]
         for i in range(min_overlaps.shape[0]):
+            result += "\n"
             result += print_str(
                 (f"{class_to_name[curcls]} "
-                 "AP@{:.2f}:".format(min_overlaps[i, 0, j])))
+                 f"AP_R11@{min_overlaps[i, 0, j]:.2f}: {mAP3d[j, 0, i]:.4f}"))
             #result += print_str((f"bbox AP:{mAPbbox[j, 0, i]:.4f}, "
             #                     f"{mAPbbox[j, 1, i]:.4f}, "
             #                     f"{mAPbbox[j, 2, i]:.4f}"))
             #result += print_str((f"bev  AP:{mAPbev[j, 0, i]:.4f}, "
             #                     f"{mAPbev[j, 1, i]:.4f}, "
             #                     f"{mAPbev[j, 2, i]:.4f}"))
-            result += print_str((f"3d   AP:{mAP3d[j, 0, i]:.4f}"))
+            #result += print_str((f"3d   AP:{mAP3d[j, 0, i]:.4f}"))
 
             #if compute_aos:
             #    result += print_str((f"aos  AP:{mAPaos[j, 0, i]:.2f}, "
@@ -704,14 +705,14 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
 
             result += print_str(
                 (f"{class_to_name[curcls]} "
-                 "AP_R40@{:.2f}:".format(min_overlaps[i, 0, j])))
+                 f"AP_R40@{min_overlaps[i, 0, j]:.2f}: {mAP3d_R40[j, 0, i]:.4f}"))
             #result += print_str((f"bbox AP:{mAPbbox_R40[j, 0, i]:.4f}, "
             #                     f"{mAPbbox_R40[j, 1, i]:.4f}, "
             #                     f"{mAPbbox_R40[j, 2, i]:.4f}"))
             #result += print_str((f"bev  AP:{mAPbev_R40[j, 0, i]:.4f}, "
             #                     f"{mAPbev_R40[j, 1, i]:.4f}, "
             #                     f"{mAPbev_R40[j, 2, i]:.4f}"))
-            result += print_str((f"3d   AP:{mAP3d_R40[j, 0, i]:.4f}"))
+            #result += print_str((f"3d   AP:{mAP3d_R40[j, 0, i]:.4f}"))
             #if compute_aos:
             #    result += print_str((f"aos  AP:{mAPaos_R40[j, 0, i]:.2f}, "
             #                         f"{mAPaos_R40[j, 1, i]:.2f}, "
