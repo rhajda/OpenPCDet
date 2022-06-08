@@ -11,10 +11,12 @@ import glob
 import os
 import easydict
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 import numpy as np
 import time
 import random
+from tabulate import tabulate
+import torch
 
 from tensorboardX import SummaryWriter
 
@@ -66,16 +68,30 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
     return args, cfg
 
-def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real") -> None:
+def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", disable_cfg_aug=False, shuffle=True) -> None:
     """_summary_
 
     :param args: _description_
     :param cfg: _description_
     :param data_type: _description_, defaults to "real"
+    :param disable_cfg_aug: _description_, defaults to False
     """
     assert data_type == "real" or data_type == "simulated"
+    if data_type == "real":
+        tmp_data_path = cfg.DATA_CONFIG.DATA_PATH
+        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL # swap the path for loading the real data instead!
+    
+    if disable_cfg_aug:
+        all_augmentation_names = [i.NAME for i in cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST]
+        tmp_disable_aug = cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST   
+        if tmp_disable_aug == all_augmentation_names:
+            print("WARNING: All data augmentation was removed for the current training!")
+        else:
+            cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = all_augmentation_names
+    
     args.logger.info(f'**********************Setup datasets and training of {data_type} data:**********************')
     dataset = easydict.EasyDict()
+    # delay shuffle as we need the 1-to-1 mapping between real and simulated data for the analysis
     dataset.train_set, dataset.train_loader, dataset.train_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
@@ -84,15 +100,23 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         logger=args.logger,
         training=True,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        total_epochs=args.epochs
+        total_epochs=args.epochs,
+        shuffle=shuffle
     )
-
     dataset.test_set, dataset.test_loader, dataset.sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=False, workers=args.workers, logger=args.logger, training=False
+        dist=False, workers=args.workers, logger=args.logger, training=False,
+        shuffle=shuffle
     )
+    
+    # restore the settings
+    if data_type == "real":
+        cfg.DATA_CONFIG.DATA_PATH = tmp_data_path
+    if disable_cfg_aug:
+        cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = tmp_disable_aug
+        
     return dataset
     
 def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict) -> None:
@@ -176,20 +200,31 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
-def analyze_data_pairs(dataset_real, dataset_simulated, logger):
+
+def load_real(img_ids: List[str], args: argparse.Namespace) -> List:
+    """Load real images corresponding to the passed ids.
+
+    :param img_ids: _description_
+    :param args: _description_
+    """
+    
+    return img_ids
+
+
+def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args):
     """_summary_
 
     :param datset_real: _description_
     :param dataset_simulated: _description_
     :param args: _description_
     """
-    logger.info('**********************Start comparison of data pairs**********************')
+    args.logger.info('**********************Start comparison of data pairs**********************')
     # check for matching lengths
     train_len = len(dataset_real.train_set)
     test_len = len(dataset_real.test_set)
-    assert train_len == len(dataset_simulated.train_set), \
+    assert train_len == len(dataset_sim.train_set), \
         'The number of train data pairs in real and simulated dataset should be the same'
-    assert test_len == len(dataset_simulated.test_set), \
+    assert test_len == len(dataset_sim.test_set), \
         'The number of test data pairs in real and simulated dataset should be the same'
     
     
@@ -201,19 +236,47 @@ def analyze_data_pairs(dataset_real, dataset_simulated, logger):
     idxs_train = random.sample(range(0, train_len), k=20-test_samples)
     idxs_test = random.sample(range(0, test_len), k=test_samples)
     
+    torch.manual_seed(0)
+    # TODO: Assure real correspondences between the selected data points!! -> see next assert!
+    a = dataset_sim.train_set[2648]
+    b = dataset_real.train_set[2648]
+    c = dataset_sim_no_aug.train_set[2648]
+    d = dataset_real_no_aug.train_set[2648]
+    
     # Load augmented values:
-    sel_train_r, sel_train_s = [dataset_real.train_set[i] for i in idxs_train], [dataset_simulated.train_set[i] for i in idxs_train]
-    set_test_r, sel_test_s = [dataset_real.test_set[i] for i in idxs_test], [dataset_simulated.test_set[i] for i in idxs_test]
+    train_real, train_sim, train_real_no_aug, train_sim_no_aug = [], [], [], []
+    for i in idxs_train:
+        aa = dataset_sim.train_set[i]['frame_id']
+        a = dataset_sim.train_set.kitti_infos[i]['point_cloud']['lidar_idx']
+        b = dataset_real.train_set[i]['frame_id']
+        c = dataset_sim_no_aug.train_set[i]['frame_id']
+        d = dataset_real_no_aug.train_set[i]['frame_id']
+        assert dataset_real.train_set[i]['frame_id'] == dataset_sim.train_set[i]['frame_id'] == dataset_real_no_aug.train_set[i]['frame_id'] == dataset_sim_no_aug.train_set[i]['frame_id']
+        
+        train_real.append(dataset_real.train_set[i]['points'])
+        train_sim.append(dataset_sim.train_set[i]['points'])
+        
+        train_real_no_aug.append(dataset_real_no_aug.train_set[i]['points'])
+        train_sim_no_aug.append(dataset_sim_no_aug.train_set[i]['points'])
+        
+    test_real, test_sim = [dataset_real.test_set[i]['points'] for i in idxs_test], [dataset_sim.test_set[i]['points'] for i in idxs_test]
     
-    # Load real values:
+    # Load non augmented original values:
     
+    test_real_no_aug, test_sim_no_aug = [dataset_real_no_aug.test_set[i]['points'] for i in idxs_test], [dataset_sim_no_aug.test_set[i]['points'] for i in idxs_test]
     
     # get some metrics on the data:
     print()
-    # mean
-    # min max 
+    # mean, min, max
+    args.logger.info("\n"+tabulate(
+        [
+            ['mean', np.mean(train_real, axis=(1, 0)), np.mean(train_sim, axis=(1, 0)), np.mean(train_real_no_aug, axis=(1, 0)), np.mean(train_sim_no_aug, axis=(1, 0))], 
+            ['min', np.min(train_real, axis=(1, 0)), np.min(train_sim, axis=(1, 0)), np.min(train_real_no_aug, axis=(1, 0)), np.min(train_sim_no_aug, axis=(1, 0))], 
+            ['max', np.max(train_real, axis=(1, 0)), np.max(train_sim, axis=(1, 0)), np.max(train_real_no_aug, axis=(1, 0)), np.max(train_sim_no_aug, axis=(1, 0))]
+        ], 
+        headers=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'], tablefmt='orgtbl'))
     
-    logger.info('**********************End comparison of data pairs**********************')
+    args.logger.info('**********************End comparison of data pairs**********************')
     
 def main():
     os.chdir(paths.tools) # directory change makes life easier with path handling later on
@@ -246,16 +309,24 @@ def main():
     log_config_to_file(cfg, logger=args.logger)
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
     
-    # load the two datsets:
-    # real:
-    dataset_real = setup_datasets(args, cfg, data_type="real")
-    print()
+    # load the two datsets whithout shuffleing:
     # simulated:
-    dataset_sim = setup_datasets(args, cfg, data_type="simulated")
+    dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False)
+    a = dataset_sim.train_set[99]
+    # real:
+    dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False)
+    b = dataset_real.train_set[99]
+    # no augmentation:
+    # simulated:
+    dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
+    c = dataset_sim_no_aug.train_set[99]
+    # real:
+    dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
+    d = dataset_real_no_aug.train_set[99]
     
-    # The passed datasets need to be matching i.e. same number of corresponding sampels
+    # The passed datasets need to be matching i.e. same number of corresponding samples
     # analyze & compare datasets:
-    analyze_data_pairs(dataset_real, dataset_sim, args.logger)
+    analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args)
     
     # train on real: TODO investigate why we still nee to have: os.chdir(paths.tools)
     execute_training(args, cfg, dataset_real)
