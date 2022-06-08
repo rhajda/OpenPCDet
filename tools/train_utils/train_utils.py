@@ -138,6 +138,9 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             # Evaluate epoch
             model.eval()
+            for tag, parm in model.named_parameters():
+                tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
+
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
             ret_dict, val_loss_list = eval_utils.eval_one_epoch(
                 cfg, model, test_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
