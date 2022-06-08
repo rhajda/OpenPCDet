@@ -58,6 +58,18 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
     model.cuda()
 
+    tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
+    min_parm = 0.0
+    max_parm = 0.0
+    for tag, parm in model.named_parameters():
+        cur_max_parm = np.amax(parm.data.cpu().numpy())
+        cur_min_parm = np.amin(parm.data.cpu().numpy())
+        if cur_max_parm > max_parm:
+            max_parm = cur_max_parm
+        if cur_min_parm < min_parm:
+            min_parm = cur_min_parm
+        tb_log.add_histogram(tag, parm.data.cpu().numpy(), epoch_id)
+
     # start evaluation
     eval_utils.eval_one_epoch(
         cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
@@ -114,6 +126,18 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
 
         model.load_params_from_file(filename=cur_ckpt, logger=logger, to_cpu=dist_test)
         model.cuda()
+
+        tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
+        min_parm = 0.0
+        max_parm = 0.0
+        for tag, parm in model.named_parameters():
+            cur_max_parm = np.amax(parm.data.cpu().numpy())
+            cur_min_parm = np.amin(parm.data.cpu().numpy())
+            if cur_max_parm > max_parm:
+                max_parm = cur_max_parm
+            if cur_min_parm < min_parm:
+                min_parm = cur_min_parm
+            tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch_id)
 
         # start evaluation
         cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch_id) / cfg.DATA_CONFIG.DATA_SPLIT['test']
