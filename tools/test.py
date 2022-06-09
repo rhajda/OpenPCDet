@@ -53,21 +53,13 @@ def parse_config():
     return args, cfg
 
 
-def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False):
+def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False, tb_log=None):
     # load checkpoint
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
     model.cuda()
 
-    tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
-    min_parm = 0.0
-    max_parm = 0.0
+    # Weights and biases histogram to tensorboard
     for tag, parm in model.named_parameters():
-        cur_max_parm = np.amax(parm.data.cpu().numpy())
-        cur_min_parm = np.amin(parm.data.cpu().numpy())
-        if cur_max_parm > max_parm:
-            max_parm = cur_max_parm
-        if cur_min_parm < min_parm:
-            min_parm = cur_min_parm
         tb_log.add_histogram(tag, parm.data.cpu().numpy(), epoch_id)
 
     # start evaluation
@@ -95,15 +87,12 @@ def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
     return -1, None
 
 
-def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=False):
+def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=False, tb_log=None):
     # evaluated ckpt record
     ckpt_record_file = eval_output_dir / ('eval_list_%s.txt' % cfg.DATA_CONFIG.DATA_SPLIT['test'])
     with open(ckpt_record_file, 'a'):
         pass
 
-    # tensorboard log
-    if cfg.LOCAL_RANK == 0:
-        tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
     total_time = 0
     first_eval = True
 
@@ -127,16 +116,8 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
         model.load_params_from_file(filename=cur_ckpt, logger=logger, to_cpu=dist_test)
         model.cuda()
 
-        tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
-        min_parm = 0.0
-        max_parm = 0.0
+        # Weights and biases histogram to tensorboard
         for tag, parm in model.named_parameters():
-            cur_max_parm = np.amax(parm.data.cpu().numpy())
-            cur_min_parm = np.amin(parm.data.cpu().numpy())
-            if cur_max_parm > max_parm:
-                max_parm = cur_max_parm
-            if cur_min_parm < min_parm:
-                min_parm = cur_min_parm
             tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch_id)
 
         # start evaluation
@@ -212,12 +193,15 @@ def main():
         dist=dist_test, workers=args.workers, logger=logger, training=False
     )
 
+    # Tensorboard
+    tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
+
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
     with torch.no_grad():
         if args.eval_all:
-            repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test)
+            repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test, tb_log=tb_log)
         else:
-            eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=dist_test)
+            eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=dist_test, tb_log=tb_log)
 
 
 if __name__ == '__main__':

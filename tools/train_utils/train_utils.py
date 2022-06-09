@@ -148,9 +148,9 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             )
             val_losses = [loss[0].item() for loss in val_loss_list]
             val_loss_avg = sum(val_losses) / len(val_losses)
-            tb_log.add_scalar('eval/val_loss', val_loss_avg, cur_epoch)
+            tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
             for key in ret_dict:
-                tb_log.add_scalar(f"eval/{key}", ret_dict[key], cur_epoch)
+                tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
             model.train()
 
 
