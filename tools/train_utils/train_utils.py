@@ -1,5 +1,7 @@
 import glob
 import os
+import csv
+import pickle
 
 import torch
 import tqdm
@@ -100,6 +102,22 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             train_loader.dataset.merge_all_iters_to_one_epoch(merge=True, epochs=total_epochs)
             total_it_each_epoch = len(train_loader) // max(total_epochs, 1)
 
+        with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow("epoch_id;"
+                                "val_loss_avg;"
+                                "AP_Car_3d/0.5_R11;"
+                                "AP_Car_3d/0.5_R40;"
+                                "AP_Car_3d/0.7_R11;"
+                                "AP_Car_3d/0.7_R40;"
+                                "recall/rcnn_0.3;"
+                                "recall/rcnn_0.5;"
+                                "recall/rcnn_0.7;"
+                                "recall/roi_0.3;"
+                                "recall/roi_0.5;"
+                                "recall/roi_0.7;"
+                                "avg_pred_obj")
+
         dataloader_iter = iter(train_loader)
         for cur_epoch in tbar:
             if train_sampler is not None:
@@ -149,9 +167,23 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             val_losses = [loss[0].item() for loss in val_loss_list]
             val_loss_avg = sum(val_losses) / len(val_losses)
             tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
-            for key in ret_dict:
+            result_str = ""
+            for key in sorted(ret_dict):
                 tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
+                result_str += str(ret_dict[key]) + ";"
+            result_str = result_str[:-1]
             model.train()
+
+            # Save results to CSV
+            with open(cur_result_dir / 'result.pkl', 'wb') as f:
+                det_annos = pickle.load(f)
+                total_pred_objects = 0
+                for anno in det_annos:
+                    total_pred_objects += anno['name'].__len__()
+                avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+            with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+                csv_writer = csv.writer(f)
+                csv_writer.writerow(f"{cur_epoch};{val_loss_avg};{result_str};{avg_pred_obj}")
 
 
 def model_state_to_cpu(model_state):
