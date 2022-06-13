@@ -175,12 +175,16 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             model.train()
 
             # Save results to CSV
-            with open(cur_result_dir / 'result.pkl', 'wb') as f:
-                det_annos = pickle.load(f)
-                total_pred_objects = 0
-                for anno in det_annos:
-                    total_pred_objects += anno['name'].__len__()
-                avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+            if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
+                with open(cur_result_dir / 'result.pkl', 'rb') as f:
+                    det_annos = pickle.load(f)
+                    total_pred_objects = 0
+                    for anno in det_annos:
+                        total_pred_objects += anno['name'].__len__()
+                    avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+            else:
+                # results.pkl empty, no predictions
+                avg_pred_obj = 0.0
             with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
                 csv_writer = csv.writer(f)
                 csv_writer.writerow(f"{cur_epoch};{val_loss_avg};{result_str};{avg_pred_obj}")
