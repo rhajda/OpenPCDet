@@ -1,4 +1,28 @@
-def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=False):
+import time
+import os
+import glob
+import re
+from tensorboardX import SummaryWriter
+from tools.eval_utils.eval_utils import eval_one_epoch
+
+def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
+    ckpt_list = glob.glob(os.path.join(ckpt_dir, '*checkpoint_epoch_*.pth'))
+    ckpt_list.sort(key=os.path.getmtime)
+    evaluated_ckpt_list = [float(x.strip()) for x in open(ckpt_record_file, 'r').readlines()]
+
+    for cur_ckpt in ckpt_list:
+        num_list = re.findall('checkpoint_epoch_(.*).pth', cur_ckpt)
+        if num_list.__len__() == 0:
+            continue
+
+        epoch_id = num_list[-1]
+        if 'optim' in epoch_id:
+            continue
+        if float(epoch_id) not in evaluated_ckpt_list and int(float(epoch_id)) >= args.start_epoch:
+            return epoch_id, cur_ckpt
+    return -1, None
+
+def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, cfg,dist_test=False):
     # evaluated ckpt record
     ckpt_record_file = eval_output_dir / ('eval_list_%s.txt' % cfg.DATA_CONFIG.DATA_SPLIT['test'])
     with open(ckpt_record_file, 'a'):
@@ -32,7 +56,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
 
         # start evaluation
         cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch_id) / cfg.DATA_CONFIG.DATA_SPLIT['test']
-        tb_dict, _ = eval_utils.eval_one_epoch(
+        tb_dict, _ = eval_one_epoch(
             cfg, model, test_loader, cur_epoch_id, logger, dist_test=dist_test,
             result_dir=cur_result_dir, save_to_file=args.save_to_file
         )

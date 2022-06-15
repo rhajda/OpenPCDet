@@ -17,6 +17,7 @@ import time
 import random
 from tabulate import tabulate
 import torch
+from tqdm import tqdm
 
 from tensorboardX import SummaryWriter
 
@@ -68,13 +69,18 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
     return args, cfg
 
-def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", disable_cfg_aug=False, shuffle=True) -> None:
+def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", disable_cfg_aug=False, shuffle=True, training=True) -> None:
     """_summary_
 
     :param args: _description_
     :param cfg: _description_
     :param data_type: _description_, defaults to "real"
     :param disable_cfg_aug: _description_, defaults to False
+    :param shuffle: _description_, defaults to True
+    :param training: Defines if the train_set will be used for training, 
+        this is relevant as in that case of (training=True) training sample 
+        with not gt boxes will be skipped, defaults to True.
+    :return: _description_
     """
     assert data_type == "real" or data_type == "simulated"
     if data_type == "real":
@@ -98,7 +104,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         batch_size=args.batch_size,
         dist=False, workers=args.workers,
         logger=args.logger,
-        training=True,
+        training=training,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs,
         shuffle=shuffle
@@ -161,6 +167,8 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     # tensorboard logging:
     tb_log = SummaryWriter(log_dir=str(args.output_dir / 'tensorboard'))
     
+    model.train()
+    
     train_model(
         model,
         optimizer,
@@ -196,27 +204,78 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
 
     repeat_eval_ckpt(model, dataset.test_loader, args, args.eval_output_dir, 
-                     args.logger, args.ckpt_dir, dist_test=args.dist_train)
+                     args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
     args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+    
+    
+def analyze_usable_samples(dataset_real, dataset_sim, args):
+    """Check how many of the training samples from the given datasets contain gt boxes and thus will be used for training.
 
-
-def load_real(img_ids: List[str], args: argparse.Namespace) -> List:
-    """Load real images corresponding to the passed ids.
-
-    :param img_ids: _description_
+    :param dataset_real: _description_
+    :param dataset_sim: _description_
     :param args: _description_
     """
+    # analyze the training samples
+    args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
     
-    return img_ids
+    # FOR TRAINING SET:
+    len_of_data = len(dataset_real.train_set)
+    assert len_of_data == len(dataset_sim.train_set)
+    
+    counter_real = 0
+    counter_sim = 0
+    for i in tqdm(range(len_of_data), "Each sample is loaded twice (real and sim)"):
+        result = dataset_real.train_set[i]
+        if int(result['frame_id']) // 5 == i:
+            counter_real += 1
+        result = dataset_sim.train_set[i]
+        if int(result['frame_id']) // 5 == i:
+            counter_sim += 1
+            
+    args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and thus will be used for training.\n"+tabulate(
+        [
+            ['usable:', f'{counter_real} of {len_of_data}', f'{counter_sim} of {len_of_data}'],
+            ['ratio:', f'{counter_real/len_of_data*100:.1f}%', f'{counter_sim/len_of_data*100:.1f}%']
+        ], 
+        headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
+    
+    # FOR TESTING SET:
+    len_of_data = len(dataset_real.test_set)
+    assert len_of_data == len(dataset_sim.test_set)
+    
+    counter_real = 0
+    for i in tqdm(range(len_of_data)):
+        result = dataset_real.test_set[i]
+        if result['gt_boxes'].size != 0:
+            counter_real += 1
+            
+    counter_sim = 0
+    for i in tqdm(range(len_of_data)):
+        result = dataset_sim.test_set[i]
+        if result['gt_boxes'].size != 0:
+            counter_sim += 1
+            
+    args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
+        [
+            ['contains box(es):', f'{counter_real} of {len_of_data}', f'{counter_sim} of {len_of_data}'],
+            ['ratio:', f'{counter_real/len_of_data*100:.1f}%', f'{counter_sim/len_of_data*100:.1f}%']
+        ], 
+        headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
+            
+    args.logger.info('**********************End analyzing samples**********************')
 
+def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20):
+    """
+    
+    No guarantee of uniqueness of the data pairs (but likely for large datasets).
 
-def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args):
-    """_summary_
-
-    :param datset_real: _description_
-    :param dataset_simulated: _description_
+    :param dataset_real: _description_
+    :param dataset_sim: _description_
+    :param dataset_real_no_aug: _description_
+    :param dataset_sim_no_aug: _description_
     :param args: _description_
+    :param num: _description_, defaults to 20
     """
     args.logger.info('**********************Start comparison of data pairs**********************')
     # check for matching lengths
@@ -230,45 +289,25 @@ def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_s
     
     # get some corresponding data pairs
     test_train_ratio = test_len / train_len
-    test_samples = 1 if int(20 * test_train_ratio) == 0 else int(20 * test_train_ratio)
+    test_samples = 1 if int(num * test_train_ratio) == 0 else int(num * test_train_ratio)
     if 0.5 <=test_train_ratio <= 0.9: print('The train test ration seems off.')
     
-    idxs_train = random.sample(range(0, train_len), k=20-test_samples)
+    idxs_train = random.sample(range(0, train_len), k=num-test_samples)
     idxs_test = random.sample(range(0, test_len), k=test_samples)
     
-    torch.manual_seed(0)
-    # TODO: Assure real correspondences between the selected data points!! -> see next assert!
-    a = dataset_sim.train_set[2648]
-    b = dataset_real.train_set[2648]
-    c = dataset_sim_no_aug.train_set[2648]
-    d = dataset_real_no_aug.train_set[2648]
-    
-    # Load augmented values:
+    # Load augmented and non_augmented values:
     train_real, train_sim, train_real_no_aug, train_sim_no_aug = [], [], [], []
-    for i in idxs_train:
-        aa = dataset_sim.train_set[i]['frame_id']
-        a = dataset_sim.train_set.kitti_infos[i]['point_cloud']['lidar_idx']
-        b = dataset_real.train_set[i]['frame_id']
-        c = dataset_sim_no_aug.train_set[i]['frame_id']
-        d = dataset_real_no_aug.train_set[i]['frame_id']
-        assert dataset_real.train_set[i]['frame_id'] == dataset_sim.train_set[i]['frame_id'] == dataset_real_no_aug.train_set[i]['frame_id'] == dataset_sim_no_aug.train_set[i]['frame_id']
+    for i in tqdm(idxs_train):
+        # Only select training sample which contain gt boxes: (only these are used for training) -> if no gt boxes, use the new returned id
+        loaded_sample = dataset_real.train_set[i]
+        loaded_sample_idx = int(loaded_sample['frame_id']) // 5 # usually the same as i, but if no gt boxes, use the new returned id
+        train_real.append(loaded_sample['points'])
+        train_sim.append(dataset_sim.train_set[loaded_sample_idx]['points'])
+        train_real_no_aug.append(dataset_real_no_aug.train_set[loaded_sample_idx]['points'])
+        train_sim_no_aug.append(dataset_sim_no_aug.train_set[loaded_sample_idx]['points'])
         
-        train_real.append(dataset_real.train_set[i]['points'])
-        train_sim.append(dataset_sim.train_set[i]['points'])
-        
-        train_real_no_aug.append(dataset_real_no_aug.train_set[i]['points'])
-        train_sim_no_aug.append(dataset_sim_no_aug.train_set[i]['points'])
-        
-    test_real, test_sim = [dataset_real.test_set[i]['points'] for i in idxs_test], [dataset_sim.test_set[i]['points'] for i in idxs_test]
-    
-    # Load non augmented original values:
-    
-    test_real_no_aug, test_sim_no_aug = [dataset_real_no_aug.test_set[i]['points'] for i in idxs_test], [dataset_sim_no_aug.test_set[i]['points'] for i in idxs_test]
-    
-    # get some metrics on the data:
-    print()
     # mean, min, max
-    args.logger.info("\n"+tabulate(
+    args.logger.info("Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!\n"+tabulate(
         [
             ['mean', np.mean(train_real, axis=(1, 0)), np.mean(train_sim, axis=(1, 0)), np.mean(train_real_no_aug, axis=(1, 0)), np.mean(train_sim_no_aug, axis=(1, 0))], 
             ['min', np.min(train_real, axis=(1, 0)), np.min(train_sim, axis=(1, 0)), np.min(train_real_no_aug, axis=(1, 0)), np.min(train_sim_no_aug, axis=(1, 0))], 
@@ -309,26 +348,27 @@ def main():
     log_config_to_file(cfg, logger=args.logger)
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
     
-    # load the two datsets whithout shuffleing:
-    # simulated:
-    dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False)
-    a = dataset_sim.train_set[99]
-    # real:
-    dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False)
-    b = dataset_real.train_set[99]
-    # no augmentation:
-    # simulated:
-    dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
-    c = dataset_sim_no_aug.train_set[99]
-    # real:
-    dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
-    d = dataset_real_no_aug.train_set[99]
+    # ######### DATASET ANALYSIS: ##########
+    analysis = False
+    if analysis:
+        # load the two datasets without shuffling but with given augmentation:
+        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False)
+        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False)
+        # no augmentation:
+        dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
+        dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
+
+        # analyze_usable_samples(dataset_real, dataset_sim, args)
+        
+        # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
+        # analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
     
-    # The passed datasets need to be matching i.e. same number of corresponding samples
-    # analyze & compare datasets:
-    analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args)
+    # ######### LOAD DATA FOR TRAINING: ##########
+    dataset_sim = setup_datasets(args, cfg, data_type="simulated")
+    dataset_real = setup_datasets(args, cfg, data_type="real")
     
-    # train on real: TODO investigate why we still nee to have: os.chdir(paths.tools)
+    # ######### PERFORM TRAINING: ##########
+    # train on real
     execute_training(args, cfg, dataset_real)
     # train on simulated:
     execute_training(args, cfg, dataset_sim)
