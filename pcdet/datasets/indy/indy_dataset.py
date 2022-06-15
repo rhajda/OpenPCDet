@@ -428,12 +428,7 @@ class IndyDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
-        data_dict = self.prepare_data(data_dict=input_dict) # also applied augementation at this position.
-
-        # data_dict['image_shape'] = img_shape
-        index_from_data_dict = int(data_dict['frame_id']) // 5 # TODO: have to be same
-        index_from_input_dict = int(input_dict['frame_id']) // 5
-        assert index * 5 == int(data_dict['frame_id'])
+        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
         return data_dict
 
 

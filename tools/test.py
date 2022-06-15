@@ -16,7 +16,7 @@ from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_f
 from pcdet.datasets import build_dataloader
 from pcdet.models import build_network
 from pcdet.utils import common_utils
-from test_utils.test_utils import repeat_eval_ckpt
+from test_utils.test_utils import repeat_eval_ckpt, get_no_evaluated_ckpt
 
 
 def parse_config():
@@ -64,24 +64,6 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
         cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
         result_dir=eval_output_dir, save_to_file=args.save_to_file
     )
-
-
-def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
-    ckpt_list = glob.glob(os.path.join(ckpt_dir, '*checkpoint_epoch_*.pth'))
-    ckpt_list.sort(key=os.path.getmtime)
-    evaluated_ckpt_list = [float(x.strip()) for x in open(ckpt_record_file, 'r').readlines()]
-
-    for cur_ckpt in ckpt_list:
-        num_list = re.findall('checkpoint_epoch_(.*).pth', cur_ckpt)
-        if num_list.__len__() == 0:
-            continue
-
-        epoch_id = num_list[-1]
-        if 'optim' in epoch_id:
-            continue
-        if float(epoch_id) not in evaluated_ckpt_list and int(float(epoch_id)) >= args.start_epoch:
-            return epoch_id, cur_ckpt
-    return -1, None
 
 def main():
     args, cfg = parse_config()

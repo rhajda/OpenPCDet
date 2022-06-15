@@ -131,7 +131,7 @@ class DatasetTemplate(torch_data.Dataset):
                 }
             )
 
-        if data_dict.get('gt_boxes', None) is not None:
+        if data_dict.get('gt_boxes', None) is not None: 
             selected = common_utils.keep_arrays_by_name(data_dict['gt_names'], self.class_names)
             data_dict['gt_boxes'] = data_dict['gt_boxes'][selected]
             data_dict['gt_names'] = data_dict['gt_names'][selected]

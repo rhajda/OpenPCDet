@@ -198,7 +198,7 @@ def main():
 
     repeat_eval_ckpt(
         model.module if dist_train else model,
-        test_loader, args, eval_output_dir, logger, ckpt_dir,
+        test_loader, args, eval_output_dir, logger, ckpt_dir, cfg,
         dist_test=dist_train
     )
     logger.info('**********************End evaluation %s/%s(%s)**********************' %
