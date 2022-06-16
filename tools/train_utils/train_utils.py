@@ -102,6 +102,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
         dataloader_iter = iter(train_loader)
         for cur_epoch in tbar:
+            logger.info(f'Currently running epoch: {cur_epoch}')
             if train_sampler is not None:
                 train_sampler.set_epoch(cur_epoch)
 

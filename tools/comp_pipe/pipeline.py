@@ -154,7 +154,7 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
             )
             last_epoch = start_epoch + 1
 
-    model.train()
+
     args.logger.info(model)
 
     lr_scheduler, lr_warmup_scheduler = build_scheduler(
@@ -168,7 +168,6 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     tb_log = SummaryWriter(log_dir=str(args.output_dir / 'tensorboard'))
     
     model.train()
-    
     train_model(
         model,
         optimizer,
