@@ -34,6 +34,7 @@ paths.indy_main = paths.root / 'data/indy/for_training'
 
 paths.indy_no_noise = paths.indy_main / 'sim_no_noise'
 paths.indy_real = paths.indy_main / 'real'
+paths.indy_real_local_part = paths.root / 'data_local/indy_up_to_50/real'
 
 #   output:
 paths.pipe_results = paths.root / 'comp_pipe/results'
