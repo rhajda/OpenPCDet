@@ -16,3 +16,4 @@ version.py
 .Xauthority
 .vscode/
 *.png
+data_local/

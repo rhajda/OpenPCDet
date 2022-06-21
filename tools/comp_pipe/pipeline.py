@@ -125,7 +125,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         
     return dataset
     
-def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict) -> None:
+def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict, evaluate=True) -> None:
     """_summary_
 
     :param args: _description_
@@ -196,16 +196,17 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
 
     args.logger.info('**********************End training %s/%s(%s)**********************\n\n\n'
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-    
-    args.logger.info('**********************Start evaluation %s/%s(%s)**********************' %
-                (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
-    args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
+    if evaluate:
+        args.logger.info('**********************Start evaluation %s/%s(%s)**********************' %
+                    (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
-    repeat_eval_ckpt(model, dataset.test_loader, args, args.eval_output_dir, 
-                     args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
-    args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
-                (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
+        args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
+
+        repeat_eval_ckpt(model, dataset.test_loader, args, args.eval_output_dir, 
+                        args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
+        args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
+                    (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
     
     
 def analyze_usable_samples(dataset_real, dataset_sim, args):
@@ -224,13 +225,32 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     
     counter_real = 0
     counter_sim = 0
-    for i in tqdm(range(len_of_data), "Each sample is loaded twice (real and sim)"):
+    real_ids = []
+    sim_ids = []
+    # TODO check this implications:
+    # for i in tqdm(range(len_of_data), "Each sample is loaded twice (real and sim)"):
+    #     result = dataset_real.train_set[i]
+    #     if int(result['frame_id']) // 5 == i:
+    #         counter_real += 1
+    #         real_ids.append(i * 5)
+    #     result = dataset_sim.train_set[i]
+    #     if int(result['frame_id']) // 5 == i:
+    #         counter_sim += 1
+    #         sim_ids.append(i * 5)
+
+    counter_real = 0
+    for i in tqdm(range(len_of_data)):
         result = dataset_real.train_set[i]
-        if int(result['frame_id']) // 5 == i:
+        if result['gt_boxes'].size != 0:
             counter_real += 1
+            
+    counter_sim = 0
+    for i in tqdm(range(len_of_data)):
         result = dataset_sim.train_set[i]
-        if int(result['frame_id']) // 5 == i:
+        if result['gt_boxes'].size != 0:
             counter_sim += 1
+
+    # print(f"Difference between real and sim are samples with ids (already multiplied by 5): {set(real_ids).difference(set(sim_ids))}")
             
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and thus will be used for training.\n"+tabulate(
         [
@@ -357,20 +377,21 @@ def main():
         dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
         dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
 
-        # analyze_usable_samples(dataset_real, dataset_sim, args)
+        analyze_usable_samples(dataset_real, dataset_sim, args)
         
         # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
         # analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
     
     # ######### LOAD DATA FOR TRAINING: ##########
-    dataset_sim = setup_datasets(args, cfg, data_type="simulated")
     dataset_real = setup_datasets(args, cfg, data_type="real")
+    dataset_sim = setup_datasets(args, cfg, data_type="simulated")
+    
     
     # ######### PERFORM TRAINING: ##########
     # train on real
-    execute_training(args, cfg, dataset_real)
+    execute_training(args, cfg, dataset_real, evaluate=False)
     # train on simulated:
-    execute_training(args, cfg, dataset_sim)
+    # execute_training(args, cfg, dataset_sim)
 
 
 if __name__ == "__main__":

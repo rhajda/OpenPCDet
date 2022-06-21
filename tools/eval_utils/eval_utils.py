@@ -56,6 +56,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
+            model.point_head.epoch_eval = True
             pred_dicts, ret_dict = model(batch_dict)
             if get_val_loss:
                 loss, tb_dict, disp_dict = model.get_training_loss()

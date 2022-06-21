@@ -43,7 +43,7 @@ class IndyDataset(DatasetTemplate):
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
-                kitti_infos.extend(infos)
+                kitti_infos.extend(infos) # ########################################### TEST SMALL DATA ###########################################
 
         self.kitti_infos.extend(kitti_infos)
 
