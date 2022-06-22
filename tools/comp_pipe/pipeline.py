@@ -227,7 +227,7 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     counter_sim = 0
     real_ids = []
     sim_ids = []
-    # TODO check this implications:
+    # TODO check this implications: -> This works as well, as by checking the indices we see which values need the be procured trough random sampling: 
     # for i in tqdm(range(len_of_data), "Each sample is loaded twice (real and sim)"):
     #     result = dataset_real.train_set[i]
     #     if int(result['frame_id']) // 5 == i:
@@ -238,17 +238,23 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     #         counter_sim += 1
     #         sim_ids.append(i * 5)
 
+
+    # test if it is lost due to the mandatory preprocessing based on the range: 
+    dataset_real.train_set.missing_gt_reselect = False
+
+    used_real = []
     counter_real = 0
     for i in tqdm(range(len_of_data)):
         result = dataset_real.train_set[i]
-        if result['gt_boxes'].size != 0:
-            counter_real += 1
-            
+        if result['gt_boxes'].size != 0: # this entry wont be used for training
+            used_real.append(int(result['frame_id']))
+
+    used_sim = []
     counter_sim = 0
     for i in tqdm(range(len_of_data)):
         result = dataset_sim.train_set[i]
         if result['gt_boxes'].size != 0:
-            counter_sim += 1
+            used_sim.append(int(result['frame_id']))
 
     # print(f"Difference between real and sim are samples with ids (already multiplied by 5): {set(real_ids).difference(set(sim_ids))}")
             
@@ -281,6 +287,8 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
             ['ratio:', f'{counter_real/len_of_data*100:.1f}%', f'{counter_sim/len_of_data*100:.1f}%']
         ], 
         headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
+
+    dataset_real.train_set.missing_gt_reselect = True
             
     args.logger.info('**********************End analyzing samples**********************')
 

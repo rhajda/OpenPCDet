@@ -45,6 +45,8 @@ class DatasetTemplate(torch_data.Dataset):
         else:
             self.depth_downsample_factor = None
 
+        self.missing_gt_reselect = True
+        
     @property
     def mode(self):
         return 'train' if self.training else 'test'
@@ -119,7 +121,7 @@ class DatasetTemplate(torch_data.Dataset):
                 voxel_coords: optional (num_voxels, 3)
                 voxel_num_points: optional (num_voxels)
                 ...
-        """
+        """        
         if self.training:
             assert 'gt_boxes' in data_dict, 'gt_boxes should be provided for training'
             gt_boxes_mask = np.array([n in self.class_names for n in data_dict['gt_names']], dtype=np.bool_)
@@ -146,11 +148,12 @@ class DatasetTemplate(torch_data.Dataset):
             data_dict = self.point_feature_encoder.forward(data_dict)
 
         data_dict = self.data_processor.forward(
-            data_dict=data_dict
+            data_dict=data_dict # gt_boxes might be removed here
         )
-
-        if self.training and len(data_dict['gt_boxes']) == 0:
+        
+        if self.training and len(data_dict['gt_boxes']) == 0 and self.missing_gt_reselect:
             new_index = np.random.randint(self.__len__())
+            print("reshuffle performed!")
             return self.__getitem__(new_index)
 
         data_dict.pop('gt_names', None)
