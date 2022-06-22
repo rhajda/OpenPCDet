@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import open3d as o3d
 from skimage import io
+from tqdm import tqdm
 
 from . import kitti_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -11,7 +12,7 @@ from ..dataset import DatasetTemplate
 
 
 class IndyDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, optimize_data=True):
         """
         Args:
             root_path:
@@ -32,6 +33,9 @@ class IndyDataset(DatasetTemplate):
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
 
+        if optimize_data:
+            self.optimize_kitti()
+
     def include_kitti_data(self, mode):
         if self.logger is not None:
             self.logger.info('Loading Indy dataset')
@@ -43,12 +47,31 @@ class IndyDataset(DatasetTemplate):
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
-                kitti_infos.extend(infos) # ########################################### TEST SMALL DATA ###########################################
-
-        self.kitti_infos.extend(kitti_infos)
+                kitti_infos.extend(infos) 
 
         if self.logger is not None:
             self.logger.info('Total samples for Indy dataset: %d' % (len(kitti_infos)))
+
+        self.kitti_infos.extend(kitti_infos)
+
+    def optimize_kitti(self):
+
+        self.missing_gt_reselect = False # avoids re-selecting => better performance
+
+        new_kitti_info = []
+                    
+        for i in tqdm(range(len(self.kitti_infos)), desc="Remove data with gt not in range"):
+            result = self.__getitem__(i) # here we already extract a new sample if the gt_box ist missing!
+            if result['gt_boxes'].size != 0:
+                # this entry can't be used for training:
+                new_kitti_info.append(self.kitti_infos[i])
+                
+        self.kitti_infos = new_kitti_info
+
+        self.missing_gt_reselect = True
+            
+        if self.logger is not None:
+            self.logger.info('Total samples for Indy dataset after optimizing: %d' % (len(self.kitti_infos)))
 
     def set_split(self, split):
         super().__init__(
