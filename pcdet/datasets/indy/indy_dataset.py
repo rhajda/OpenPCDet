@@ -4,6 +4,7 @@ import numpy as np
 import open3d as o3d
 from skimage import io
 from tqdm import tqdm
+import os
 
 from . import kitti_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils

@@ -72,7 +72,7 @@ def parse_config():
     parser.add_argument('--ext', type=str, default='.bin', help='specify the extension of your point cloud data file')
 
     args = parser.parse_args()
-    
+
     # Avoids always using '--ext' when is is clear from the given path
     if Path(args.data_path).is_file:
         args.ext = str(Path(args.data_path).suffix)

@@ -39,8 +39,8 @@ paths.indy_real_local_part = paths.root / 'data_local/indy_up_to_50/real'
 #   output:
 paths.pipe_results = paths.root / 'comp_pipe/results'
 
-paths.indy_exp_real = paths.indy_real / 'training/velodyne/000007.pcd'
-paths.indy_exp_no_noise = paths.indy_no_noise / 'training/velodyne/000007.pcd'
+paths.indy_exp_real = paths.indy_real / 'training/velodyne/000009.pcd'
+paths.indy_exp_no_noise = paths.indy_no_noise / 'training/velodyne/000009.pcd'
 
 # paths related to configs:
 paths.cfg = paths.tools / 'cfgs'
