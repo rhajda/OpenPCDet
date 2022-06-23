@@ -12,7 +12,7 @@ from ..dataset import DatasetTemplate
 
 
 class IndyDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, optimize_data=True):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, optimize_data=False):
         """
         Args:
             root_path:
@@ -32,7 +32,8 @@ class IndyDataset(DatasetTemplate):
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
-
+        self.original_data_size = len(self.kitti_infos)
+        
         if optimize_data:
             self.optimize_kitti()
 
