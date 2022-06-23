@@ -1,5 +1,5 @@
 '''
-Pipeline for comparing real vs simulated data. 
+Pipeline for comparing real vs simulated data.
 
 Currently writte to be run on single GPU.
 '''
@@ -18,6 +18,7 @@ import random
 from tabulate import tabulate
 import torch
 from tqdm import tqdm
+# from tensorboard.plugins.mesh import summary as mesh_summary
 
 from tensorboardX import SummaryWriter
 
@@ -31,15 +32,15 @@ from tools.test_utils.test_utils import repeat_eval_ckpt
 
 def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     parser = argparse.ArgumentParser(description='arg parser')
-    
+
     parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training e.g. cfgs/indy_models/pointrcnn.yaml')
     parser.add_argument('--ckpt', type=str, default=None, help='checkpoint to start from')
 
     parser.add_argument('--extra_tag', type=str, default='default', help='extra tag for this experiment')
-        
+
     parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=None, required=False, help='number of epochs to train for')
-    
+
     parser.add_argument('--workers', type=int, default=4, help='number of workers for dataloader')
 
 
@@ -60,7 +61,7 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
     # set data config
     cfg_from_yaml_file(paths.cfg_indy_pointrcnn, cfg)
-    
+
     cfg.TAG = Path(args.cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
 
@@ -71,14 +72,14 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
 def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", optimize_data: bool = False, disable_cfg_aug=False, shuffle=True, training=True) -> None:
     """_summary_
-
+ =
     :param args: _description_
     :param cfg: _description_
     :param data_type: _description_, defaults to "real"
     :param disable_cfg_aug: _description_, defaults to False
     :param shuffle: _description_, defaults to True
-    :param training: Defines if the train_set will be used for training, 
-        this is relevant as in that case of (training=True) training sample 
+    :param training: Defines if the train_set will be used for training,
+        this is relevant as in that case of (training=True) training sample
         with not gt boxes will be skipped, defaults to True.
     :return: _description_
     """
@@ -86,15 +87,15 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
     if data_type == "real":
         tmp_data_path = cfg.DATA_CONFIG.DATA_PATH
         cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL # swap the path for loading the real data instead!
-    
+
     if disable_cfg_aug:
         all_augmentation_names = [i.NAME for i in cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST]
-        tmp_disable_aug = cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST   
+        tmp_disable_aug = cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST
         if tmp_disable_aug == all_augmentation_names:
             print("WARNING: All data augmentation was removed for the current training!")
         else:
             cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = all_augmentation_names
-    
+
     args.logger.info(f'**********************Setup datasets and training of {data_type} data:**********************')
     dataset = easydict.EasyDict()
     # delay shuffle as we need the 1-to-1 mapping between real and simulated data for the analysis
@@ -118,15 +119,15 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         shuffle=shuffle,
         optimize_data = optimize_data
     )
-    
+
     # restore the settings
     if data_type == "real":
         cfg.DATA_CONFIG.DATA_PATH = tmp_data_path
     if disable_cfg_aug:
         cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = tmp_disable_aug
-        
+
     return dataset
-    
+
 def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict, evaluate=True) -> None:
     """_summary_
 
@@ -137,7 +138,7 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=dataset.train_set, epoch_eval=True)
     model.cuda()
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
-    
+
     # load checkpoint if it is possible
     start_epoch = it = 0
     last_epoch = -1
@@ -165,10 +166,10 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     )
     args.logger.info('**********************Start training %s/%s(%s)**********************'
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-    
+
     # tensorboard logging:
     tb_log = SummaryWriter(log_dir=str(args.output_dir / 'tensorboard'))
-    
+
     model.train()
     train_model(
         model,
@@ -209,8 +210,8 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
                         args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
         args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                     (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-    
-    
+
+
 def analyze_usable_samples(dataset_real, dataset_sim, args):
     """Check how many of the training samples from the given datasets contain gt boxes and thus will be used for training.
 
@@ -220,12 +221,12 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     """
     # analyze the training samples
     args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
-    
+
     # FOR TRAINING SET:
     len_of_data_real = len(dataset_real.train_set)
     len_of_data_sim = len(dataset_sim.train_set)
     assert len_of_data_real == len_of_data_sim
-    
+
     # test if it is lost due to the mandatory preprocessing based on the range: 
     dataset_real.train_set.missing_gt_reselect = False
     dataset_sim.train_set.missing_gt_reselect = False
@@ -247,49 +248,61 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     args.logger.info(f"If both sets above are not empty we train with different training-set (correlation affected).")
 
     # args.logger.info(f"Total amount of 1-to-1 correspondences: {set(unused_sim).difference(set(unused_real))}")
-    
+
     counter_real = len_of_data_real - len(unused_real)
     counter_sim = len_of_data_sim - len(unused_sim)
-    
+
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and thus will be used for training.\n"+tabulate(
         [
             ['usable:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
             ['ratio:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']
-        ], 
+        ],
         headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
 
     # CAN BE REMOVED: IT KEPT AS WHOLE
-    # FOR VALIDATION SET:    
+    # FOR VALIDATION SET:
     len_of_data_real = len(dataset_real.test_set)
     len_of_data_sim = len(dataset_sim.test_set)
-    
+
     counter_real = 0
     for i in tqdm(len_of_data_real):
         result = dataset_real.test_set[i]
         if result['gt_boxes'].size != 0:
             counter_real += 1
-            
+
     counter_sim = 0
     for i in tqdm(len_of_data_sim):
         result = dataset_sim.test_set[i]
         if result['gt_boxes'].size != 0:
             counter_sim += 1
-            
+
     args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
         [
             ['contains box(es):', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
             ['ratio:', f'{counter_real/len_of_data_real*100:.1f}%', f'{counter_sim/len_of_data_sim*100:.1f}%']
-        ], 
+        ],
         headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
 
     dataset_real.train_set.missing_gt_reselect = True
     dataset_sim.train_set.missing_gt_reselect = True
-    
+
     args.logger.info('**********************End analyzing samples**********************')
+
+
+def log_example_pointcloud_pairs(dataset_real, dataset_sim, args):
+    """_summary_
+
+    :param dataset_real: _description_
+    :param dataset_sim: _description_
+    :param args: _description_
+    """
+    pc1 = dataset_real.train_set[0]['pointcloud']
+    
+    summary = mesh_summary.op('mesh', vertices=mesh, colors=colors, faces=faces)
 
 def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20):
     """
-    
+
     No guarantee of uniqueness of the data pairs (but likely for large datasets).
 
     :param dataset_real: _description_
@@ -307,16 +320,16 @@ def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_s
         'The number of train data pairs in real and simulated dataset should be the same'
     assert test_len == len(dataset_sim.test_set), \
         'The number of test data pairs in real and simulated dataset should be the same'
-    
-    
+
+
     # get some corresponding data pairs
     test_train_ratio = test_len / train_len
     test_samples = 1 if int(num * test_train_ratio) == 0 else int(num * test_train_ratio)
     if 0.5 <=test_train_ratio <= 0.9: print('The train test ration seems off.')
-    
+
     idxs_train = random.sample(range(0, train_len), k=num-test_samples)
     idxs_test = random.sample(range(0, test_len), k=test_samples)
-    
+
     # Load augmented and non_augmented values:
     train_real, train_sim, train_real_no_aug, train_sim_no_aug = [], [], [], []
     for i in tqdm(idxs_train):
@@ -327,28 +340,28 @@ def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_s
         train_sim.append(dataset_sim.train_set[loaded_sample_idx]['points'])
         train_real_no_aug.append(dataset_real_no_aug.train_set[loaded_sample_idx]['points'])
         train_sim_no_aug.append(dataset_sim_no_aug.train_set[loaded_sample_idx]['points'])
-        
+
     # mean, min, max
     args.logger.info("Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!\n"+tabulate(
         [
-            ['mean', np.mean(train_real, axis=(1, 0)), np.mean(train_sim, axis=(1, 0)), np.mean(train_real_no_aug, axis=(1, 0)), np.mean(train_sim_no_aug, axis=(1, 0))], 
+            ['mean', np.mean(train_real, axis=(1, 0)), np.mean(train_sim, axis=(1, 0)), np.mean(train_real_no_aug, axis=(1, 0)), np.mean(train_sim_no_aug, axis=(1, 0))],
             ['min', np.min(train_real, axis=(1, 0)), np.min(train_sim, axis=(1, 0)), np.min(train_real_no_aug, axis=(1, 0)), np.min(train_sim_no_aug, axis=(1, 0))], 
             ['max', np.max(train_real, axis=(1, 0)), np.max(train_sim, axis=(1, 0)), np.max(train_real_no_aug, axis=(1, 0)), np.max(train_sim_no_aug, axis=(1, 0))]
-        ], 
+        ],
         headers=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'], tablefmt='orgtbl'))
-    
+
     args.logger.info('**********************End comparison of data pairs**********************')
-    
+
 def main():
     os.chdir(paths.tools) # directory change makes life easier with path handling later on
     args, cfg = parse_config()
-    
+
     # check the passed parameters:
     args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU if args.batch_size is None else args.batch_size
     args.epochs = cfg.OPTIMIZATION.NUM_EPOCHS if args.epochs is None else args.epochs
     if args.fix_random_seed:
         common_utils.set_random_seed(666)
-        
+
     # Set up logging and output directories
     args.output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
     args.ckpt_dir = args.output_dir / 'ckpt'
@@ -359,7 +372,7 @@ def main():
 
     log_file = args.output_dir / ('log_pipeline_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     args.logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK)
-    
+
     # start logging
     args.logger.info('**********************Start logging**********************')
     # log available gpus
@@ -369,7 +382,7 @@ def main():
         args.logger.info('{:16} {}'.format(key, val))
     log_config_to_file(cfg, logger=args.logger)
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
-    
+
     # ######### DATASET ANALYSIS: ##########
     analysis = False
     if analysis:
@@ -382,15 +395,15 @@ def main():
         # no augmentation:
         dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
         dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
-        
+
         # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
         analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
-    
+
     # ######### LOAD DATA FOR TRAINING: ##########
     dataset_real = setup_datasets(args, cfg, data_type="real", optimize_data=True)
     # dataset_sim = setup_datasets(args, cfg, data_type="simulated", optimize_data=True)
-    
-    
+
+
     # ######### PERFORM TRAINING: ##########
     # train on real
     execute_training(args, cfg, dataset_real, evaluate=False)

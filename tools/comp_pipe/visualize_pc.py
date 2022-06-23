@@ -2,6 +2,7 @@ import os
 import glob
 import numpy as np
 from pathlib import Path
+from pcdet.datasets import build_dataloader
 
 try:
     import open3d
@@ -15,6 +16,8 @@ except:
 from pcdet.config import cfg, cfg_from_yaml_file
 from pcdet.datasets import DatasetTemplate
 from tools.comp_pipe.path_handle import paths
+
+from tools.comp_pipe.pipeline import parse_config
 
 class DemoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
@@ -56,18 +59,19 @@ class DemoDataset(DatasetTemplate):
         data_dict = self.prepare_data(data_dict=input_dict)
         return data_dict
     
-def visualize_pointcloud(points: np.array, ref_boxes: np.array, ref_scores: np.array, 
+def visualize_pointcloud(points: np.array, gt_boxes: np.array, ref_scores: np.array, 
                          ref_labels: np.array, just_image=True) -> None:
     """
     Visualize pointcloud using open3d or mayavi.
     """
-    V.draw_scenes(points, ref_boxes, ref_scores, ref_labels,just_image=just_image)
+    V.draw_scenes(points, gt_boxes=gt_boxes, ref_boxes=None, ref_labels=None, ref_scores=None, point_colors=None, draw_origin=True, just_image=just_image)
     if not OPEN3D_FLAG:
         mlab.show(stop=True)
         
 def main():
         
     data_path = paths.indy_exp_real
+    # data_path = paths.indy_exp_no_noise
     
     # Avoids always using '--ext' when is is clear from the given path
     ext='.bin'
@@ -76,20 +80,35 @@ def main():
 
     # set data config
     os.chdir(paths.tools)
-    cfg_from_yaml_file(paths.cfg_indy_pointrcnn, cfg)
-    os.chdir(paths.root)
+    # cfg_from_yaml_file(paths.cfg_indy_pointrcnn, cfg)
+   
+    # demo_dataset = DemoDataset(
+    #     dataset_cfg=cfg.DATA_CONFIG, class_names=cfg.CLASS_NAMES, training=False,
+    #     root_path=Path(data_path), ext=ext
+    #     )
+
+    args, cfg = parse_config()
+
+    dataset, dataset_loader, dataset_sampler = build_dataloader(
+        dataset_cfg=cfg.DATA_CONFIG,
+        class_names=cfg.CLASS_NAMES,
+        batch_size=4,
+        dist=False, workers=1, logger=None, training=False,
+        shuffle=False,
+        optimize_data = False
+    )
+
     
-    demo_dataset = DemoDataset(
-        dataset_cfg=cfg.DATA_CONFIG, class_names=cfg.CLASS_NAMES, training=False,
-        root_path=Path(data_path), ext=ext
-        )
         
     # Display raw data
-    data_dict = demo_dataset[0]
-    data_dict = demo_dataset.collate_batch([data_dict])
-    
+    # data_dict = demo_dataset[0]
+    # data_dict = demo_dataset.collate_batch([data_dict])
+
+    data_dict = dataset[9]
+
+    os.chdir(paths.root)
     visualize_pointcloud(
-        points=data_dict['points'][:, 1:], ref_boxes=None,
+        points=data_dict['points'], gt_boxes=data_dict['gt_boxes'],
         ref_scores=None, ref_labels=None
     )
     
@@ -99,7 +118,7 @@ def main():
     
     # Display predictions
     
-if __name__ == "__main__":
+if __name__ == "__main__":    
     import time
     t0 = time.time()
     print("Running...")

@@ -75,7 +75,7 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scor
         vis.destroy_window()
     else:
         viewctrl = vis.get_view_control()
-        viewctrl.set_lookat(np.array([0.0, -1.0, 0.0]))
+        viewctrl.set_lookat(np.array([0.0, -70.0, 0.0]))
         vis.poll_events()
         vis.update_renderer()
         img = vis.capture_screen_float_buffer(do_render=True)
