@@ -69,7 +69,7 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
     return args, cfg
 
-def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", disable_cfg_aug=False, shuffle=True, training=True) -> None:
+def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", optimize_data: bool = False, disable_cfg_aug=False, shuffle=True, training=True) -> None:
     """_summary_
 
     :param args: _description_
@@ -107,14 +107,16 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         training=training,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs,
-        shuffle=shuffle
+        shuffle=shuffle,
+        optimize_data = optimize_data
     )
     dataset.test_set, dataset.test_loader, dataset.sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
         dist=False, workers=args.workers, logger=args.logger, training=False,
-        shuffle=shuffle
+        shuffle=shuffle,
+        optimize_data = optimize_data
     )
     
     # restore the settings
@@ -220,76 +222,69 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
     
     # FOR TRAINING SET:
-    len_of_data = len(dataset_real.train_set)
-    assert len_of_data == len(dataset_sim.train_set)
+    len_of_data_real = len(dataset_real.train_set)
+    len_of_data_sim = len(dataset_sim.train_set)
+    assert len_of_data_real == len_of_data_sim
     
-    counter_real = 0
-    counter_sim = 0
-    real_ids = []
-    sim_ids = []
-    # TODO check this implications: -> This works as well, as by checking the indices we see which values need the be procured trough random sampling: 
-    # for i in tqdm(range(len_of_data), "Each sample is loaded twice (real and sim)"):
-    #     result = dataset_real.train_set[i]
-    #     if int(result['frame_id']) // 5 == i:
-    #         counter_real += 1
-    #         real_ids.append(i * 5)
-    #     result = dataset_sim.train_set[i]
-    #     if int(result['frame_id']) // 5 == i:
-    #         counter_sim += 1
-    #         sim_ids.append(i * 5)
-
-
     # test if it is lost due to the mandatory preprocessing based on the range: 
     dataset_real.train_set.missing_gt_reselect = False
+    dataset_sim.train_set.missing_gt_reselect = False
 
-    used_real = []
-    counter_real = 0
-    for i in tqdm(range(len_of_data)):
+    unused_real = []
+    for i in tqdm(range(len_of_data_real)):
         result = dataset_real.train_set[i]
         if result['gt_boxes'].size != 0: # this entry wont be used for training
-            used_real.append(int(result['frame_id']))
+            unused_real.append(int(result['frame_id']))
 
-    used_sim = []
-    counter_sim = 0
-    for i in tqdm(range(len_of_data)):
+    unused_sim = []
+    for i in tqdm(range(len_of_data_sim)):
         result = dataset_sim.train_set[i]
         if result['gt_boxes'].size != 0:
-            used_sim.append(int(result['frame_id']))
+            unused_sim.append(int(result['frame_id']))
 
-    # print(f"Difference between real and sim are samples with ids (already multiplied by 5): {set(real_ids).difference(set(sim_ids))}")
-            
+    args.logger.info(f"Difference of samples: these are removed from real but not from sim (already multiplied by 5 := 'frame_id') - These are used in the training of sim but not in the training of real: \n{set(unused_real).difference(set(unused_sim))}") # <=> unused_real - unused_sim
+    args.logger.info(f"Difference of samples: these are removed from sim but not from real (already multiplied by 5 := 'frame_id') - These are used in the training of real but not in the training of sim: \n{set(unused_sim).difference(set(unused_real))}") # <=> unused_sim - unused_real
+    args.logger.info(f"If both sets above are not empty we train with different training-set (correlation affected).")
+
+    # args.logger.info(f"Total amount of 1-to-1 correspondences: {set(unused_sim).difference(set(unused_real))}")
+    
+    counter_real = len_of_data_real - len(unused_real)
+    counter_sim = len_of_data_sim - len(unused_sim)
+    
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and thus will be used for training.\n"+tabulate(
         [
-            ['usable:', f'{counter_real} of {len_of_data}', f'{counter_sim} of {len_of_data}'],
-            ['ratio:', f'{counter_real/len_of_data*100:.1f}%', f'{counter_sim/len_of_data*100:.1f}%']
+            ['usable:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
+            ['ratio:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']
         ], 
         headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
-    
-    # FOR TESTING SET:
-    len_of_data = len(dataset_real.test_set)
-    assert len_of_data == len(dataset_sim.test_set)
+
+    # CAN BE REMOVED: IT KEPT AS WHOLE
+    # FOR VALIDATION SET:    
+    len_of_data_real = len(dataset_real.test_set)
+    len_of_data_sim = len(dataset_sim.test_set)
     
     counter_real = 0
-    for i in tqdm(range(len_of_data)):
+    for i in tqdm(len_of_data_real):
         result = dataset_real.test_set[i]
         if result['gt_boxes'].size != 0:
             counter_real += 1
             
     counter_sim = 0
-    for i in tqdm(range(len_of_data)):
+    for i in tqdm(len_of_data_sim):
         result = dataset_sim.test_set[i]
         if result['gt_boxes'].size != 0:
             counter_sim += 1
             
     args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
         [
-            ['contains box(es):', f'{counter_real} of {len_of_data}', f'{counter_sim} of {len_of_data}'],
-            ['ratio:', f'{counter_real/len_of_data*100:.1f}%', f'{counter_sim/len_of_data*100:.1f}%']
+            ['contains box(es):', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
+            ['ratio:', f'{counter_real/len_of_data_real*100:.1f}%', f'{counter_sim/len_of_data_sim*100:.1f}%']
         ], 
         headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
 
     dataset_real.train_set.missing_gt_reselect = True
-            
+    dataset_sim.train_set.missing_gt_reselect = True
+    
     args.logger.info('**********************End analyzing samples**********************')
 
 def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20):
@@ -379,20 +374,21 @@ def main():
     analysis = False
     if analysis:
         # load the two datasets without shuffling but with given augmentation:
-        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False)
-        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False)
+        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, optimize_data=False)
+        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, optimize_data=False)
+
+        analyze_usable_samples(dataset_real, dataset_sim, args)
+
         # no augmentation:
         dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
         dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
-
-        analyze_usable_samples(dataset_real, dataset_sim, args)
         
         # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-        # analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
+        analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
     
     # ######### LOAD DATA FOR TRAINING: ##########
-    dataset_real = setup_datasets(args, cfg, data_type="real")
-    dataset_sim = setup_datasets(args, cfg, data_type="simulated")
+    dataset_real = setup_datasets(args, cfg, data_type="real", optimize_data=True)
+    # dataset_sim = setup_datasets(args, cfg, data_type="simulated", optimize_data=True)
     
     
     # ######### PERFORM TRAINING: ##########
