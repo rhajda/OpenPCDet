@@ -5,8 +5,8 @@ import math
 
 
 # Directions to the point clouds
-path_to_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/new/sim_no_noise/training/velodyne"
-path_to_downsampled_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/new/sim_no_noise_downsampled/training/velodyne"
+path_to_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/sim_no_noise/training/velodyne"
+path_to_downsampled_point_clouds = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data/for_training/sim_no_noise_downsampled/training/velodyne"
 os.makedirs(path_to_downsampled_point_clouds, exist_ok=True)
 downsample_factor = 0.8  # keeps downsample_factor*100 % of the points
 

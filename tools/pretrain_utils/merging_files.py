@@ -27,12 +27,12 @@ else:
 
 if pcd:
     srcpath = os.path.join(src_dataset, f"{point_clouds}")
-    savepath = os.path.join("for_training", "new", dst_dataset, "training", "velodyne")
+    savepath = os.path.join("for_training", dst_dataset, "training", "velodyne")
     os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.pcd'
 else:
     srcpath = os.path.join(src_dataset, f"{labels}")
-    savepath = os.path.join("for_training", "new", dst_dataset, "training", "label_2")
+    savepath = os.path.join("for_training", dst_dataset, "training", "label_2")
     os.makedirs(os.path.join(extracted_data_path, savepath), exist_ok=True)
     data_type = '.txt'
 
