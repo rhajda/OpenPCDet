@@ -4,11 +4,7 @@ import shutil
 
 
 ####
-pcd = False  # copy point clouds or labels
-src_dataset = ""  # "" for real
-                  # "simulation/01_no_noise/train" for sim OR
-                  # "simulation/02_noise_002/train" for sim OR
-                  # "simulation/03_noise_005/train" for sim
+pcd = False  # True: copy point clouds, False: copy labels
 dst_dataset = "real"  # "real" or "sim_no_noise" or "sim_noise_002" or "sim_noise_005"
 extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data"
 ####
@@ -16,9 +12,18 @@ extracted_data_path = "/mnt/13_Vegas_Challenge/03_Data/02_Real/00_extracted_data
 if "real" in dst_dataset:
     point_clouds = "pcd_valid"
     labels = "label_valid"
+    src_dataset = ""
 else:
     point_clouds = "pcl"
     labels = "label"
+    if dst_dataset == "sim_no_noise":
+        src_dataset = "simulation/01_no_noise/train"
+    elif dst_dataset == "sim_noise_002":
+        src_dataset = "simulation/02_noise_002/train"
+    elif dst_dataset == "sim_noise_005":
+        src_dataset = "simulation/03_noise_005/train"
+    else:
+        raise NotImplementedError
 
 if pcd:
     srcpath = os.path.join(src_dataset, f"{point_clouds}")
