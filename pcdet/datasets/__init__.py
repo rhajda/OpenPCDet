@@ -49,16 +49,16 @@ class DistributedSampler(_DistributedSampler):
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
                      logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0,
-                     shuffle=True, optimize_data=False):
+                     shuffle=True, remove_missing_gt=False):
 
-    if optimize_data:
+    if remove_missing_gt:
         dataset = __all__[dataset_cfg.DATASET](
             dataset_cfg=dataset_cfg,
             class_names=class_names,
             root_path=root_path,
             training=training,
             logger=logger,
-            optimize_data=optimize_data
+            remove_missing_gt=remove_missing_gt
         )
     else: # default
         dataset = __all__[dataset_cfg.DATASET](
