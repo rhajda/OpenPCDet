@@ -212,13 +212,20 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
                     (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
 
-def analyze_usable_samples(dataset_real, dataset_sim, args):
+def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to_one=True):
     """Check how many of the training samples from the given datasets contain gt boxes and thus will be used for training.
 
     :param dataset_real: _description_
     :param dataset_sim: _description_
     :param args: _description_
     """
+    def get_usable_samples(dataset):
+        usable_samples = []
+        for data in dataset:
+            if len(data['gt_boxes']) > 0: # this entry CAN be used for training
+                usable_samples.append(data['frame_id'])
+        return usable_samples
+    
     # analyze the training samples
     args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
 
@@ -231,28 +238,35 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
     dataset_real.train_set.missing_gt_reselect = False
     dataset_sim.train_set.missing_gt_reselect = False
 
-    unused_real = []
-    for i in tqdm(range(len_of_data_real)):
-        result = dataset_real.train_set[i]
-        if result['gt_boxes'].size != 0: # this entry wont be used for training
-            unused_real.append(int(result['frame_id']))
+    used_real = get_usable_samples(dataset_real.train_set)
 
-    unused_sim = []
-    for i in tqdm(range(len_of_data_sim)):
-        result = dataset_sim.train_set[i]
-        if result['gt_boxes'].size != 0:
-            unused_sim.append(int(result['frame_id']))
+    used_sim = get_usable_samples(dataset_sim.train_set)
 
-    args.logger.info(f"Difference of samples: these are removed from real but not from sim (already multiplied by 5 := 'frame_id') - These are used in the training of sim but not in the training of real: \n{set(unused_real).difference(set(unused_sim))}") # <=> unused_real - unused_sim
-    args.logger.info(f"Difference of samples: these are removed from sim but not from real (already multiplied by 5 := 'frame_id') - These are used in the training of real but not in the training of sim: \n{set(unused_sim).difference(set(unused_real))}") # <=> unused_sim - unused_real
+    diff_real_to_sim = set(used_real).difference(set(used_sim)) # <=> used_real - used_sim
+    diff_sim_to_real= set(used_sim).difference(set(used_real)) # <=> used_sim - used_real
+    
+    args.logger.info(f"Difference of samples: these are used in training with real but not with sim \
+(idx multiplied by 5 := 'frame_id'): \n{diff_real_to_sim}")
+    args.logger.info(f"Difference of samples: these are used in training with sim but not with real \
+(idx multiplied by 5 := 'frame_id'): \n{diff_sim_to_real}")
     args.logger.info(f"If both sets above are not empty we train with different training-set (correlation affected).")
 
-    # args.logger.info(f"Total amount of 1-to-1 correspondences: {set(unused_sim).difference(set(unused_real))}")
-
-    counter_real = len_of_data_real - len(unused_real)
-    counter_sim = len_of_data_sim - len(unused_sim)
-
-    args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and thus will be used for training.\n"+tabulate(
+    counter_real = len(used_real)
+    counter_sim = len(used_sim)
+    
+    if make_datasets_one_to_one:
+        args.logger.info(f"As \"make_datasets_one_to_one\" option is used the samples not both sets are removed.")
+        for i in tqdm(diff_sim_to_real + diff_sim_to_real, dsc="Remove samples not in intersection:"):
+            del dataset_sim.train_set.kitti_infos[i]
+            del dataset_real.train_set.kitti_infos[i]
+        assert len(dataset_sim.train_set) == len(dataset_real.train_set)
+        args.logger.info(f"\nDataset size after removing samples not in intersection and unused in training: \
+            {len(dataset_sim.train_set)} of originally {len_of_data_real}\n")
+        counter_real = len(dataset_real.train_set)  
+        counter_sim = len(dataset_sim.train_set)
+        
+    args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and \
+thus will be used for training with the current configuration.\n"+tabulate(
         [
             ['usable:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
             ['ratio:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']
@@ -261,30 +275,23 @@ def analyze_usable_samples(dataset_real, dataset_sim, args):
 
     # CAN BE REMOVED: IT KEPT AS WHOLE
     # FOR VALIDATION SET:
-    len_of_data_real = len(dataset_real.test_set)
-    len_of_data_sim = len(dataset_sim.test_set)
+    args.logger.info(f"In the validation set samples are not excluded.")
 
-    counter_real = 0
-    for i in tqdm(len_of_data_real):
-        result = dataset_real.test_set[i]
-        if result['gt_boxes'].size != 0:
-            counter_real += 1
+    # len_of_data_real = len(dataset_real.test_set)
+    # len_of_data_sim = len(dataset_sim.test_set)
 
-    counter_sim = 0
-    for i in tqdm(len_of_data_sim):
-        result = dataset_sim.test_set[i]
-        if result['gt_boxes'].size != 0:
-            counter_sim += 1
+    # counter_real = len(get_usable_samples(dataset_real.test_set))
+    # counter_sim = len(get_usable_samples(dataset_sim.test_set))
 
-    args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
-        [
-            ['contains box(es):', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
-            ['ratio:', f'{counter_real/len_of_data_real*100:.1f}%', f'{counter_sim/len_of_data_sim*100:.1f}%']
-        ],
-        headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
+    # args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
+    #     [
+    #         ['contains box(es):', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
+    #         ['ratio:', f'{counter_real/len_of_data_real*100:.1f}%', f'{counter_sim/len_of_data_sim*100:.1f}%']
+    #     ],
+    #     headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
 
-    dataset_real.train_set.missing_gt_reselect = True
-    dataset_sim.train_set.missing_gt_reselect = True
+    # dataset_real.train_set.missing_gt_reselect = True
+    # dataset_sim.train_set.missing_gt_reselect = True
 
     args.logger.info('**********************End analyzing samples**********************')
 
@@ -384,7 +391,7 @@ def main():
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
 
     # ######### DATASET ANALYSIS: ##########
-    analysis = False
+    analysis = True
     if analysis:
         # load the two datasets without shuffling but with given augmentation:
         dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, optimize_data=False)
