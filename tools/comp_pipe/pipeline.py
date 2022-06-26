@@ -70,9 +70,10 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
 
     return args, cfg
 
-def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", optimize_data: bool = False, disable_cfg_aug=False, shuffle=True, training=True) -> None:
+def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real", 
+                   remove_missing_gt: bool = False, 
+                   disable_cfg_aug=False, shuffle=True, training=True) -> None:
     """_summary_
- =
     :param args: _description_
     :param cfg: _description_
     :param data_type: _description_, defaults to "real"
@@ -109,7 +110,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs,
         shuffle=shuffle,
-        optimize_data = optimize_data
+        remove_missing_gt = remove_missing_gt
     )
     dataset.test_set, dataset.test_loader, dataset.sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
@@ -117,7 +118,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         batch_size=args.batch_size,
         dist=False, workers=args.workers, logger=args.logger, training=False,
         shuffle=shuffle,
-        optimize_data = optimize_data
+        remove_missing_gt = False # not necessary 
     )
 
     # restore the settings
@@ -219,29 +220,18 @@ def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to
     :param dataset_sim: _description_
     :param args: _description_
     """
-    def get_usable_samples(dataset):
-        usable_samples = []
-        for data in dataset:
-            if len(data['gt_boxes']) > 0: # this entry CAN be used for training
-                usable_samples.append(data['frame_id'])
-        return usable_samples
-    
+        
     # analyze the training samples
     args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
 
     # FOR TRAINING SET:
-    len_of_data_real = len(dataset_real.train_set)
-    len_of_data_sim = len(dataset_sim.train_set)
-    assert len_of_data_real == len_of_data_sim
+    len_of_data_real = dataset_real.train_set.original_dataset_size
+    len_of_data_sim = dataset_sim.train_set.original_dataset_size
+    # assert len_of_data_real == len_of_data_sim
 
-    # test if it is lost due to the mandatory preprocessing based on the range: 
-    dataset_real.train_set.missing_gt_reselect = False
-    dataset_sim.train_set.missing_gt_reselect = False
-
-    used_real = get_usable_samples(dataset_real.train_set)
-
-    used_sim = get_usable_samples(dataset_sim.train_set)
-
+    used_real = [x['point_cloud']['lidar_idx'] for x in dataset_real.train_set.kitti_infos]
+    used_sim =  [x['point_cloud']['lidar_idx'] for x in dataset_sim.train_set.kitti_infos]
+    
     diff_real_to_sim = set(used_real).difference(set(used_sim)) # <=> used_real - used_sim
     diff_sim_to_real= set(used_sim).difference(set(used_real)) # <=> used_sim - used_real
     
@@ -251,26 +241,30 @@ def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to
 (idx multiplied by 5 := 'frame_id'): \n{diff_sim_to_real}")
     args.logger.info(f"If both sets above are not empty we train with different training-set (correlation affected).")
 
-    counter_real = len(used_real)
-    counter_sim = len(used_sim)
+    counter_real_gt = len(used_real)
+    counter_sim_gt = len(used_sim)
+
+    table = [['usable with gt:', f'{counter_real_gt} of {len_of_data_real}', f'{counter_sim_gt} of {len_of_data_sim}'],
+            ['ratio with gt:', f'{counter_real_gt/ len_of_data_real* 100:.1f}%', f'{counter_sim_gt/len_of_data_sim * 100:.1f}%']]
     
     if make_datasets_one_to_one:
         args.logger.info(f"As \"make_datasets_one_to_one\" option is used the samples not both sets are removed.")
-        for i in tqdm(diff_sim_to_real + diff_sim_to_real, dsc="Remove samples not in intersection:"):
-            del dataset_sim.train_set.kitti_infos[i]
-            del dataset_real.train_set.kitti_infos[i]
+        to_del_s = [x for x in dataset_sim.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_sim_to_real]
+        to_del_r = [x for x in dataset_real.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_real_to_sim]
+        for i in tqdm(to_del_s, desc="Remove samples not in intersection from sim:"):
+            dataset_sim.train_set.kitti_infos.remove(i)
+        for i in tqdm(to_del_r, desc="Remove samples not in intersection from real:"):
+            dataset_real.train_set.kitti_infos.remove(i)
         assert len(dataset_sim.train_set) == len(dataset_real.train_set)
         args.logger.info(f"\nDataset size after removing samples not in intersection and unused in training: \
-            {len(dataset_sim.train_set)} of originally {len_of_data_real}\n")
+            {len(dataset_sim.train_set)} of originally {len_of_data_real} (both real and sim) \n")
         counter_real = len(dataset_real.train_set)  
         counter_sim = len(dataset_sim.train_set)
+        table += [['usable one_to_one:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
+            ['ratio one_to_one:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']]
         
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and \
-thus will be used for training with the current configuration.\n"+tabulate(
-        [
-            ['usable:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
-            ['ratio:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']
-        ],
+thus will be used for training with the current configuration.\n" + tabulate(table,
         headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
 
     # CAN BE REMOVED: IT KEPT AS WHOLE
@@ -290,8 +284,6 @@ thus will be used for training with the current configuration.\n"+tabulate(
     #     ],
     #     headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
 
-    # dataset_real.train_set.missing_gt_reselect = True
-    # dataset_sim.train_set.missing_gt_reselect = True
 
     args.logger.info('**********************End analyzing samples**********************')
 
@@ -394,10 +386,10 @@ def main():
     analysis = True
     if analysis:
         # load the two datasets without shuffling but with given augmentation:
-        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, optimize_data=False)
-        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, optimize_data=False)
+        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, remove_missing_gt=True)
+        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, remove_missing_gt=True)
 
-        analyze_usable_samples(dataset_real, dataset_sim, args)
+        analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to_one=True) # ADDITIONAL: make 1-to-1
 
         # no augmentation:
         dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
