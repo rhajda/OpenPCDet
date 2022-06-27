@@ -25,9 +25,9 @@ __all__ = {
 }
 
 
-def build_detector(model_cfg, num_class, dataset, epoch_eval=False):
+def build_detector(model_cfg, num_class, dataset, epoch_eval=False, inference_mode=False):
     model = __all__[model_cfg.NAME](
-        model_cfg=model_cfg, num_class=num_class, dataset=dataset, epoch_eval=epoch_eval
+        model_cfg=model_cfg, num_class=num_class, dataset=dataset, epoch_eval=epoch_eval, inference_mode=inference_mode
     )
 
     return model

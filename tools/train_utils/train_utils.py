@@ -93,7 +93,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 start_epoch, total_epochs, start_iter, rank, tb_log, ckpt_save_dir, train_sampler=None,
                 lr_warmup_scheduler=None, ckpt_save_interval=1, max_ckpt_save_num=50,
                 merge_all_iters_to_one_epoch=False,
-                cfg=None, test_loader=None, logger=None, dist_train=False, eval_output_dir=None):
+                cfg=None, val_loader=None, logger=None, dist_train=False, eval_output_dir=None):
     accumulated_iter = start_iter
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
         total_it_each_epoch = len(train_loader)
@@ -161,7 +161,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
             ret_dict, val_loss_list = eval_utils.eval_one_epoch(
-                cfg, model, test_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
+                cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
                 result_dir=cur_result_dir, get_val_loss=True
             )
             val_losses = [loss[0].item() for loss in val_loss_list]
