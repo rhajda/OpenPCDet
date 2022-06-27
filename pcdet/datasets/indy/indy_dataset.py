@@ -36,6 +36,8 @@ class IndyDataset(DatasetTemplate):
     def include_kitti_data(self, mode):
         if self.logger is not None:
             self.logger.info(f"Loading Indy dataset using samples defined in {self.split}.txt")
+        else:
+            print(f"Loading Indy dataset using samples defined in {self.split}.txt")
         kitti_infos = []
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
@@ -50,6 +52,8 @@ class IndyDataset(DatasetTemplate):
 
         if self.logger is not None:
             self.logger.info('Total samples for Indy dataset: %d' % (len(kitti_infos)))
+        else:
+            print('Total samples for Indy dataset: %d' % (len(kitti_infos)))
 
     def set_split(self, split):
         super().__init__(
@@ -60,7 +64,11 @@ class IndyDataset(DatasetTemplate):
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
-        self.logger.info(f"Set split to {self.split}")
+
+        if self.logger is not None:
+            self.logger.info(f"Set split to {self.split}")
+        else:
+            print(f"Set split to {self.split}")
 
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
