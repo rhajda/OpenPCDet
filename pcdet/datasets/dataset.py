@@ -50,12 +50,12 @@ class DatasetTemplate(torch_data.Dataset):
     @property
     def mode(self):
         if self.training:
-            return "train"
-        else:
             if self.epoch_eval:
                 return "val"
             else:
-                return "test"
+                return "train"
+        else:
+            return "test"
 
     def __getstate__(self):
         d = dict(self.__dict__)
