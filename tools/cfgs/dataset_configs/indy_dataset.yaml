@@ -12,7 +12,7 @@ DATA_SPLIT: {
 INFO_PATH: {
     'train': [kitti_infos_train.pkl],
     'val': [kitti_infos_val.pkl],
-    'test': [kitti_infos_test.pkl],
+    'test': [kitti_infos_test.pkl]
 }
 
 GET_ITEM_LIST: ["points"]
@@ -60,7 +60,7 @@ DATA_PROCESSOR:
     - NAME: shuffle_points
       SHUFFLE_ENABLED: {
         'train': True,
-        'val': False
+        'val': False,
         'test': False
       }
 
@@ -69,6 +69,6 @@ DATA_PROCESSOR:
       MAX_POINTS_PER_VOXEL: 5
       MAX_NUMBER_OF_VOXELS: {
         'train': 16000,
-        'val': 40000
+        'val': 40000,
         'test': 40000
       }
