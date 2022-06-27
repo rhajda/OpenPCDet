@@ -156,19 +156,6 @@ class IndyDataset(DatasetTemplate):
             pc_info = {'num_features': 3, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
-###            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
-###            info['image'] = image_info
-###            calib = self.get_calib(sample_idx)
-
-###            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
-###            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
-###            R0_4x4[3, 3] = 1.
-###            R0_4x4[:3, :3] = calib.R0
-###            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0)
-###            calib_info = {'P2': P2, 'R0_rect': R0_4x4, 'Tr_velo_to_cam': V2C_4x4}
-
-###            info['calib'] = calib_info
-
             if has_label:
                 obj_list = self.get_label(sample_idx)
                 annotations = {}
@@ -191,7 +178,6 @@ class IndyDataset(DatasetTemplate):
                 loc = annotations['location'][:num_objects]
                 dims = annotations['dimensions'][:num_objects]
                 rots = annotations['rotation_y'][:num_objects]
-###                loc_lidar = calib.rect_to_lidar(loc)
                 loc_lidar = loc
                 l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]  # from kitti format!
                 #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
@@ -202,16 +188,10 @@ class IndyDataset(DatasetTemplate):
 
                 if count_inside_pts:
                     points = self.get_lidar(sample_idx)
-###                    calib = self.get_calib(sample_idx)
-###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
-
-###                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-###                    pts_fov = points[fov_flag]
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
-###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
                         flag = box_utils.in_hull(points, corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
@@ -309,13 +289,7 @@ class IndyDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            #calib = batch_dict['calib'][batch_index]
-            #image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
-            #pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
             pred_boxes_camera = np.concatenate([pred_boxes[:, :6], np.expand_dims(pred_boxes[:, 6], axis=-1)], axis=-1)
-            #pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
-            #    pred_boxes_camera, calib, image_shape=image_shape
-            #)
             pred_boxes_img = np.zeros(shape=(pred_scores.shape[0], 4))
 
             pred_dict['name'] = np.array(class_names)[pred_labels - 1]
@@ -380,13 +354,10 @@ class IndyDataset(DatasetTemplate):
         info = copy.deepcopy(self.kitti_infos[index])
 
         sample_idx = info['point_cloud']['lidar_idx']
-###        img_shape = info['image']['image_shape']
-###        calib = self.get_calib(sample_idx)
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
 
         input_dict = {
             'frame_id': sample_idx,
-###            'calib': calib,
         }
 
         if 'annos' in info:
@@ -395,7 +366,6 @@ class IndyDataset(DatasetTemplate):
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-            #gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
             gt_boxes_lidar = np.concatenate([gt_boxes_camera[:, :6], np.expand_dims(gt_boxes_camera[:, 6], axis=-1)], axis=-1)
 
 
@@ -413,9 +383,6 @@ class IndyDataset(DatasetTemplate):
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
             if self.dataset_cfg.FOV_POINTS_ONLY:
-###                pts_rect = calib.lidar_to_rect(points[:, 0:3])
-###                fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
-###                points = points[fov_flag]
                 points = points[:, 0:3]
             input_dict['points'] = points
 
@@ -429,8 +396,6 @@ class IndyDataset(DatasetTemplate):
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
         data_dict = self.prepare_data(data_dict=input_dict)
-
-        #data_dict['image_shape'] = img_shape
         return data_dict
 
 
