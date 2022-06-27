@@ -24,7 +24,7 @@ class IndyDataset(DatasetTemplate):
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+        self.root_split_path = self.root_path / 'training'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
@@ -59,6 +59,7 @@ class IndyDataset(DatasetTemplate):
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+        self.logger.info(f"Using data from {self.split}.txt")
 
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
@@ -401,11 +402,11 @@ class IndyDataset(DatasetTemplate):
 
 def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
     dataset = IndyDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
-    train_split, val_split = 'train', 'val'
+    train_split, val_split, test_split = 'train', 'val', 'test'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
     val_filename = save_path / ('kitti_infos_%s.pkl' % val_split)
-    test_filename = save_path / 'kitti_infos_test.pkl'
+    test_filename = save_path / ('kitti_infos_%s.pkl' % test_split)
 
     print('---------------Start to generate data infos---------------')
 
@@ -421,7 +422,7 @@ def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4)
         pickle.dump(kitti_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
 
-    dataset.set_split('test')
+    dataset.set_split(test_split)
     kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(test_filename, 'wb') as f:
         pickle.dump(kitti_infos_test, f)
