@@ -16,9 +16,9 @@ import numpy as np
 import time
 import random
 from tabulate import tabulate
-import torch
+import subprocess
 from tqdm import tqdm
-# from tensorboard.plugins.mesh import summary as mesh_summary
+from logging import Logger
 
 from tensorboardX import SummaryWriter
 
@@ -29,6 +29,16 @@ from pcdet.utils import common_utils
 from tools.train_utils.optimization import build_optimizer, build_scheduler
 from tools.train_utils.train_utils import train_model
 from tools.test_utils.test_utils import repeat_eval_ckpt
+
+def log_git_data(logger: Logger) -> None:
+    """_summary_
+
+    :param args: _description_
+    """
+    commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+    git_branch =  subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('ascii').strip()
+    logger.info(f'Git commit hash: {commit_hash}')
+    logger.info(f'Git current branch: {git_branch}')
 
 def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     parser = argparse.ArgumentParser(description='arg parser')
@@ -212,9 +222,8 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
         args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                     (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
-
-def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to_one=True):
-    """Check how many of the training samples from the given datasets contain gt boxes and thus will be used for training.
+def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) -> None:
+    """Make the passed datasets matching each other one-to-one.
 
     :param dataset_real: _description_
     :param dataset_sim: _description_
@@ -222,7 +231,7 @@ def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to
     """
         
     # analyze the training samples
-    args.logger.info('**********************Start analyzing samples for gt_obj_boxes**********************')
+    args.logger.info('**********************Start making datasets one-to-one matching**********************')
 
     # FOR TRAINING SET:
     len_of_data_real = dataset_real.train_set.original_dataset_size
@@ -247,21 +256,24 @@ def analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to
     table = [['usable with gt:', f'{counter_real_gt} of {len_of_data_real}', f'{counter_sim_gt} of {len_of_data_sim}'],
             ['ratio with gt:', f'{counter_real_gt/ len_of_data_real* 100:.1f}%', f'{counter_sim_gt/len_of_data_sim * 100:.1f}%']]
     
-    if make_datasets_one_to_one:
-        args.logger.info(f"As \"make_datasets_one_to_one\" option is used the samples not both sets are removed.")
-        to_del_s = [x for x in dataset_sim.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_sim_to_real]
-        to_del_r = [x for x in dataset_real.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_real_to_sim]
-        for i in tqdm(to_del_s, desc="Remove samples not in intersection from sim:"):
-            dataset_sim.train_set.kitti_infos.remove(i)
-        for i in tqdm(to_del_r, desc="Remove samples not in intersection from real:"):
-            dataset_real.train_set.kitti_infos.remove(i)
-        assert len(dataset_sim.train_set) == len(dataset_real.train_set)
-        args.logger.info(f"\nDataset size after removing samples not in intersection and unused in training: \
-            {len(dataset_sim.train_set)} of originally {len_of_data_real} (both real and sim) \n")
-        counter_real = len(dataset_real.train_set)  
-        counter_sim = len(dataset_sim.train_set)
-        table += [['usable one_to_one:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
-            ['ratio one_to_one:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']]
+    args.logger.info(f"As \"make_datasets_one_to_one\" option is used the samples not both sets are removed.")
+    to_del_s = [x for x in dataset_sim.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_sim_to_real]
+    to_del_r = [x for x in dataset_real.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_real_to_sim]
+
+    for i in tqdm(to_del_s, desc="Remove samples not in intersection from sim:"):
+        dataset_sim.train_set.kitti_infos.remove(i)
+
+    for i in tqdm(to_del_r, desc="Remove samples not in intersection from real:"):
+        dataset_real.train_set.kitti_infos.remove(i)
+
+    assert len(dataset_sim.train_set) == len(dataset_real.train_set)
+    args.logger.info(f"\nDataset size after removing samples not in intersection and unused in training: \
+        {len(dataset_sim.train_set)} of originally {len_of_data_real} (both real and sim) \n")
+    counter_real = len(dataset_real.train_set)  
+    counter_sim = len(dataset_sim.train_set)
+
+    table += [['usable one_to_one:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
+        ['ratio one_to_one:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']]
         
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and \
 thus will be used for training with the current configuration.\n" + tabulate(table,
@@ -269,26 +281,13 @@ thus will be used for training with the current configuration.\n" + tabulate(tab
 
     # CAN BE REMOVED: IT KEPT AS WHOLE
     # FOR VALIDATION SET:
-    args.logger.info(f"In the validation set samples are not excluded.")
-
-    # len_of_data_real = len(dataset_real.test_set)
-    # len_of_data_sim = len(dataset_sim.test_set)
-
-    # counter_real = len(get_usable_samples(dataset_real.test_set))
-    # counter_sim = len(get_usable_samples(dataset_sim.test_set))
-
-    # args.logger.info("Check how many of the testing samples from the given datasets contain gt_obj_boxes.\n"+tabulate(
-    #     [
-    #         ['contains box(es):', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
-    #         ['ratio:', f'{counter_real/len_of_data_real*100:.1f}%', f'{counter_sim/len_of_data_sim*100:.1f}%']
-    #     ],
-    #     headers=['Attribute', 'dataset_real_test', 'dataset_sim_test'], tablefmt='orgtbl'))
+    args.logger.info(f"In the validation set samples are not checked.")
 
 
-    args.logger.info('**********************End analyzing samples**********************')
+    args.logger.info('**********************End making datasets one-to-one matching**********************')
 
 
-def log_example_pointcloud_pairs(dataset_real, dataset_sim, args):
+def log_example_pointcloud_pairs(dataset_real, dataset_sim, args): # TODO
     """_summary_
 
     :param dataset_real: _description_
@@ -298,6 +297,7 @@ def log_example_pointcloud_pairs(dataset_real, dataset_sim, args):
     pc1 = dataset_real.train_set[0]['pointcloud']
     
     summary = mesh_summary.op('mesh', vertices=mesh, colors=colors, faces=faces)
+
 
 def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20):
     """
@@ -374,6 +374,8 @@ def main():
 
     # start logging
     args.logger.info('**********************Start logging**********************')
+    log_git_data(args.logger)
+
     # log available gpus
     gpu_list = os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() else 'ALL'
     args.logger.info('CUDA_VISIBLE_DEVICES=%s' % gpu_list)
@@ -383,13 +385,8 @@ def main():
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
 
     # ######### DATASET ANALYSIS: ##########
-    analysis = True
+    analysis = False
     if analysis:
-        # load the two datasets without shuffling but with given augmentation:
-        dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, remove_missing_gt=True)
-        dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, remove_missing_gt=True)
-
-        analyze_usable_samples(dataset_real, dataset_sim, args, make_datasets_one_to_one=True) # ADDITIONAL: make 1-to-1
 
         # no augmentation:
         dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
@@ -399,8 +396,10 @@ def main():
         analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
 
     # ######### LOAD DATA FOR TRAINING: ##########
-    dataset_real = setup_datasets(args, cfg, data_type="real", optimize_data=True)
-    # dataset_sim = setup_datasets(args, cfg, data_type="simulated", optimize_data=True)
+    dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, remove_missing_gt=True)
+    dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, remove_missing_gt=True)
+
+    make_matching_datasets(dataset_real, dataset_sim, args)
 
 
     # ######### PERFORM TRAINING: ##########
