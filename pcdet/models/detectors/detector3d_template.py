@@ -12,15 +12,15 @@ from ..model_utils import model_nms_utils
 
 
 class Detector3DTemplate(nn.Module):
-    def __init__(self, model_cfg, num_class, dataset, epoch_eval=False, inference_mode=False):
+    def __init__(self, model_cfg, num_class, dataset, eval=False, test=False):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_class = num_class
         self.dataset = dataset
         self.class_names = dataset.class_names
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
-        self.epoch_eval = epoch_eval
-        self.inference_mode = inference_mode
+        self.eval = eval
+        self.test = test
 
         self.module_topology = [
             'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
@@ -29,7 +29,17 @@ class Detector3DTemplate(nn.Module):
 
     @property
     def mode(self):
-        return 'TRAIN' if self.training else 'TEST'
+        if self.training:
+            return "TRAIN"
+        else:
+            if self.eval:
+                if self.test:
+                    return "TEST"
+                else:
+                    return "VAL"
+            else:
+                # inference mode
+                return "TEST"
 
     def update_global_step(self):
         self.global_step += 1
@@ -153,8 +163,7 @@ class Detector3DTemplate(nn.Module):
             model_cfg=self.model_cfg.POINT_HEAD,
             input_channels=num_point_features,
             num_class=self.num_class if not self.model_cfg.POINT_HEAD.CLASS_AGNOSTIC else 1,
-            predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False), epoch_eval=self.epoch_eval,
-            inference_mode=self.inference_mode
+            predict_boxes_when_training=self.model_cfg.get('ROI_HEAD', False), eval=self.eval
         )
 
         model_info_dict['module_list'].append(point_head_module)
@@ -170,6 +179,8 @@ class Detector3DTemplate(nn.Module):
             point_cloud_range=model_info_dict['point_cloud_range'],
             voxel_size=model_info_dict['voxel_size'],
             num_class=self.num_class if not self.model_cfg.ROI_HEAD.CLASS_AGNOSTIC else 1,
+            eval=self.eval,
+            test=self.test
         )
 
         model_info_dict['module_list'].append(point_head_module)

@@ -8,12 +8,15 @@ from .roi_head_template import RoIHeadTemplate
 
 
 class PointRCNNHead(RoIHeadTemplate):
-    def __init__(self, input_channels, model_cfg, num_class=1, **kwargs):
+    def __init__(self, input_channels, model_cfg, num_class=1, eval=False, test=False, **kwargs):
         super().__init__(num_class=num_class, model_cfg=model_cfg)
         self.model_cfg = model_cfg
         use_bn = self.model_cfg.USE_BN
         self.SA_modules = nn.ModuleList()
         channel_in = input_channels
+
+        self.eval = eval
+        self.test = test
 
         self.num_prefix_channels = 3 + 2  # xyz + point_scores + point_depth
         xyz_mlps = [self.num_prefix_channels] + self.model_cfg.XYZ_UP_LAYER
@@ -137,8 +140,20 @@ class PointRCNNHead(RoIHeadTemplate):
         Returns:
 
         """
+        if self.training:
+            nms_config = self.model_cfg.NMS_CONFIG["TRAIN"]
+        else:
+            if self.eval:
+                if self.test:
+                    nms_config = self.model_cfg.NMS_CONFIG["TEST"]
+                else:
+                    nms_config = self.model_cfg.NMS_CONFIG["VAL"]
+            else:
+                # inference mode
+                nms_config = self.model_cfg.NMS_CONFIG["TEST"]
+
         targets_dict = self.proposal_layer(
-            batch_dict, nms_config=self.model_cfg.NMS_CONFIG['TRAIN' if self.training else 'TEST']
+            batch_dict, nms_config=nms_config
         )
         if self.training:
             targets_dict = self.assign_targets(batch_dict)
