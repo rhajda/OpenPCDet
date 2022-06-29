@@ -12,11 +12,11 @@ from .processor.point_feature_encoder import PointFeatureEncoder
 
 class DatasetTemplate(torch_data.Dataset):
     def __init__(self, dataset_cfg=None, class_names=None, training=True, root_path=None, logger=None,
-                 eval=False, test=False):
+                 eval_mode=False, test=False):
         super().__init__()
         self.dataset_cfg = dataset_cfg
         self.training = training
-        self.eval = eval
+        self.eval_mode = eval_mode
         self.test = test
         self.class_names = class_names
         self.logger = logger
@@ -53,7 +53,7 @@ class DatasetTemplate(torch_data.Dataset):
         if self.training:
             return "train"
         else:
-            if self.eval:
+            if self.eval_mode:
                 if self.test:
                     return "test"
                 else:

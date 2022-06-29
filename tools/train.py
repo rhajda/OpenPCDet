@@ -114,7 +114,7 @@ def main():
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         total_epochs=args.epochs,
         training=True,
-        eval=False,
+        eval_mode=False,
         test=False
     )
 
@@ -124,11 +124,11 @@ def main():
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers, logger=logger,
         training=False,
-        eval=True,
+        eval_mode=True,
         test=False
     )
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, eval=False,
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, eval_mode=False,
                           test=False)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)

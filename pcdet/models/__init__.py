@@ -12,9 +12,9 @@ except:
     # print('Warning: kornia is not installed. This package is only required by CaDDN')
 
 
-def build_network(model_cfg, num_class, dataset, eval=False, test=False):
+def build_network(model_cfg, num_class, dataset, eval_mode=False, test=False):
     model = build_detector(
-        model_cfg=model_cfg, num_class=num_class, dataset=dataset, eval=eval, test=test
+        model_cfg=model_cfg, num_class=num_class, dataset=dataset, eval_mode=eval_mode, test=test
     )
     return model
 

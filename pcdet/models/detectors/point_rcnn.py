@@ -2,8 +2,8 @@ from .detector3d_template import Detector3DTemplate
 
 
 class PointRCNN(Detector3DTemplate):
-    def __init__(self, model_cfg, num_class, dataset, eval=False, test=False):
-        super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset, eval=eval, test=test)
+    def __init__(self, model_cfg, num_class, dataset, eval_mode=False, test=False):
+        super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset, eval_mode=eval_mode, test=test)
         self.module_list = self.build_networks()
 
     def forward(self, batch_dict):

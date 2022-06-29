@@ -48,7 +48,7 @@ class DistributedSampler(_DistributedSampler):
 
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0, training=True, eval=False,
+                     logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0, training=True, eval_mode=False,
                      test=False):
 
     dataset = __all__[dataset_cfg.DATASET](
@@ -57,7 +57,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
         root_path=root_path,
         training=training,
         logger=logger,
-        eval=eval,
+        eval_mode=eval_mode,
         test=test,
     )
 
