@@ -3,7 +3,7 @@ DATA_PATH: './../data/indy/for_training/sim_no_noise' # '../data/indy'
 DATA_PATH_REAL: './../data/indy/for_training/real'
 # DATA_PATH_REAL: './../data_local/indy_up_to_50/real'
 
-POINT_CLOUD_RANGE: [-80, -80, -30, 80, 80, 30]
+POINT_CLOUD_RANGE: [-100, -100, -30, 100, 100, 30]
 
 DATA_SPLIT: {
     'train': train,

@@ -34,7 +34,7 @@ class IndyDataset(DatasetTemplate):
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
         self.original_dataset_size = len(self.kitti_infos)
-        
+        self.only_gt_box = False
         if remove_missing_gt:
            self.remove_missing_gt_samples()
 
