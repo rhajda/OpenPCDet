@@ -5,7 +5,7 @@ from typing import Any, Union
 
 class Singleton(type):
     """
-    Singleton class that can be passed as metaclass to avoid multiple instantiation. 
+    Singleton class that can be passed as metaclass to avoid multiple instantiation.
     """
     _instances = {}
     def __call__(cls, *args, **kwargs):
@@ -15,14 +15,14 @@ class Singleton(type):
 
 class PathSingle(EasyDict, metaclass=Singleton):
     """
-    A path singleton class to make it easy to handle valid paths. 
+    A path singleton class to make it easy to handle valid paths.
     """
 
     def __setattr__(self, k: Any, v: Union[Path, str]) -> None:
         v = Path(v) if type(v) == str else v
         assert v.exists
         return super().__setitem__(k, v)
-    
+
     __setitem__ = __setattr__
 
 paths = PathSingle()
@@ -46,5 +46,5 @@ paths.indy_exp_no_noise = paths.indy_no_noise / 'training/velodyne/000009.pcd'
 paths.cfg = paths.tools / 'cfgs'
 paths.cfg_indy_pointrcnn = paths.cfg / 'indy_models/pointrcnn.yaml'
 
-# Target for results: 
+# Target for results:
 # Result is save to /home/output/cfgs/indy_models/pointrcnn/default/eval/eval_with_train/# epoch_0/val

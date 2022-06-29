@@ -128,7 +128,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         batch_size=args.batch_size,
         dist=False, workers=args.workers, logger=args.logger, training=False,
         shuffle=shuffle,
-        remove_missing_gt = False # not necessary 
+        remove_missing_gt = False # not necessary
     )
 
     # restore the settings
@@ -229,7 +229,7 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) ->
     :param dataset_sim: _description_
     :param args: _description_
     """
-        
+
     # analyze the training samples
     args.logger.info('**********************Start making datasets one-to-one matching**********************')
 
@@ -240,10 +240,10 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) ->
 
     used_real = [x['point_cloud']['lidar_idx'] for x in dataset_real.train_set.kitti_infos]
     used_sim =  [x['point_cloud']['lidar_idx'] for x in dataset_sim.train_set.kitti_infos]
-    
+
     diff_real_to_sim = set(used_real).difference(set(used_sim)) # <=> used_real - used_sim
     diff_sim_to_real= set(used_sim).difference(set(used_real)) # <=> used_sim - used_real
-    
+
     args.logger.info(f"Difference of samples: these are used in training with real but not with sim \
 (idx multiplied by 5 := 'frame_id'): \n{diff_real_to_sim}")
     args.logger.info(f"Difference of samples: these are used in training with sim but not with real \
@@ -255,7 +255,7 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) ->
 
     table = [['usable with gt:', f'{counter_real_gt} of {len_of_data_real}', f'{counter_sim_gt} of {len_of_data_sim}'],
             ['ratio with gt:', f'{counter_real_gt/ len_of_data_real* 100:.1f}%', f'{counter_sim_gt/len_of_data_sim * 100:.1f}%']]
-    
+
     args.logger.info(f"As \"make_datasets_one_to_one\" option is used the samples not both sets are removed.")
     to_del_s = [x for x in dataset_sim.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_sim_to_real]
     to_del_r = [x for x in dataset_real.train_set.kitti_infos if x['point_cloud']['lidar_idx'] in diff_real_to_sim]
@@ -269,12 +269,12 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) ->
     assert len(dataset_sim.train_set) == len(dataset_real.train_set)
     args.logger.info(f"\nDataset size after removing samples not in intersection and unused in training: \
         {len(dataset_sim.train_set)} of originally {len_of_data_real} (both real and sim) \n")
-    counter_real = len(dataset_real.train_set)  
+    counter_real = len(dataset_real.train_set)
     counter_sim = len(dataset_sim.train_set)
 
     table += [['usable one_to_one:', f'{counter_real} of {len_of_data_real}', f'{counter_sim} of {len_of_data_sim}'],
         ['ratio one_to_one:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']]
-        
+
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and \
 thus will be used for training with the current configuration.\n" + tabulate(table,
         headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
@@ -295,7 +295,7 @@ def log_example_pointcloud_pairs(dataset_real, dataset_sim, args): # TODO
     :param args: _description_
     """
     pc1 = dataset_real.train_set[0]['pointcloud']
-    
+
     summary = mesh_summary.op('mesh', vertices=mesh, colors=colors, faces=faces)
 
 
