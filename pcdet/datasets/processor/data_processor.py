@@ -61,11 +61,11 @@ class VoxelGeneratorWrapper():
 
 
 class DataProcessor(object):
-    def __init__(self, processor_configs, point_cloud_range, training, num_point_features):
+    def __init__(self, processor_configs, point_cloud_range, training, num_point_features, mode):
         self.point_cloud_range = point_cloud_range
         self.training = training
         self.num_point_features = num_point_features
-        self.mode = 'train' if training else 'test'
+        self.mode = mode
         self.grid_size = self.voxel_size = None
         self.data_processor_queue = []
 

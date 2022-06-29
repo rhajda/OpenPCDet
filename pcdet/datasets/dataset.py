@@ -12,11 +12,12 @@ from .processor.point_feature_encoder import PointFeatureEncoder
 
 class DatasetTemplate(torch_data.Dataset):
     def __init__(self, dataset_cfg=None, class_names=None, training=True, root_path=None, logger=None,
-                 epoch_eval=False):
+                 eval=False, test=False):
         super().__init__()
         self.dataset_cfg = dataset_cfg
         self.training = training
-        self.epoch_eval = epoch_eval
+        self.eval = eval
+        self.test = test
         self.class_names = class_names
         self.logger = logger
         self.root_path = root_path if root_path is not None else Path(self.dataset_cfg.DATA_PATH)
@@ -34,7 +35,7 @@ class DatasetTemplate(torch_data.Dataset):
         ) if self.training else None
         self.data_processor = DataProcessor(
             self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range,
-            training=self.training, num_point_features=self.point_feature_encoder.num_point_features
+            training=self.training, num_point_features=self.point_feature_encoder.num_point_features, mode=self.mode
         )
 
         self.grid_size = self.data_processor.grid_size
@@ -50,12 +51,16 @@ class DatasetTemplate(torch_data.Dataset):
     @property
     def mode(self):
         if self.training:
-            if self.epoch_eval:
-                return "val"
-            else:
-                return "train"
+            return "train"
         else:
-            return "test"
+            if self.eval:
+                if self.test:
+                    return "test"
+                else:
+                    return "val"
+            else:
+                # inference mode
+                return "test"
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -157,7 +162,7 @@ class DatasetTemplate(torch_data.Dataset):
             data_dict=data_dict
         )
 
-        if self.training and len(data_dict['gt_boxes']) == 0:
+        if len(data_dict['gt_boxes']) == 0:
             new_index = np.random.randint(self.__len__())
             return self.__getitem__(new_index)
 

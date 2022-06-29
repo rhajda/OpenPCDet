@@ -111,16 +111,21 @@ def main():
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers,
         logger=logger,
-        training=True,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        total_epochs=args.epochs
+        total_epochs=args.epochs,
+        training=True,
+        eval=False,
+        test=False
     )
 
     val_set, val_loader, val_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=dist_train, workers=args.workers, logger=logger, training=True, epoch_eval=True
+        dist=dist_train, workers=args.workers, logger=logger,
+        training=False,
+        eval=True,
+        test=False
     )
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, epoch_eval=True,
