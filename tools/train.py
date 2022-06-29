@@ -115,14 +115,15 @@ def main():
         total_epochs=args.epochs
     )
 
-    test_set, test_loader, sampler = build_dataloader(
+    val_set, val_loader, val_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=dist_train, workers=args.workers, logger=logger, training=False
+        dist=dist_train, workers=args.workers, logger=logger, training=True, epoch_eval=True
     )
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, epoch_eval=True)
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, epoch_eval=True,
+                          inference_mode=False)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
@@ -179,7 +180,7 @@ def main():
         max_ckpt_save_num=args.max_ckpt_save_num,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         cfg=cfg,
-        test_loader=test_loader,
+        val_loader=val_loader,
         logger=logger,
         dist_train=dist_train,
         eval_output_dir=eval_output_dir
@@ -198,7 +199,7 @@ def main():
 
     repeat_eval_ckpt(
         model.module if dist_train else model,
-        test_loader, args, eval_output_dir, logger, ckpt_dir, cfg,
+        val_loader, args, eval_output_dir, logger, ckpt_dir, cfg,
         dist_test=dist_train
     )
     logger.info('**********************End evaluation %s/%s(%s)**********************' %

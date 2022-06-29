@@ -1,5 +1,7 @@
 import glob
 import os
+import csv
+import pickle
 
 import torch
 import tqdm
@@ -91,7 +93,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 start_epoch, total_epochs, start_iter, rank, tb_log, ckpt_save_dir, train_sampler=None,
                 lr_warmup_scheduler=None, ckpt_save_interval=1, max_ckpt_save_num=50,
                 merge_all_iters_to_one_epoch=False,
-                cfg=None, test_loader=None, logger=None, dist_train=False, eval_output_dir=None):
+                cfg=None, val_loader=None, logger=None, dist_train=False, eval_output_dir=None):
     accumulated_iter = start_iter
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
         total_it_each_epoch = len(train_loader)
@@ -99,6 +101,22 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             assert hasattr(train_loader.dataset, 'merge_all_iters_to_one_epoch')
             train_loader.dataset.merge_all_iters_to_one_epoch(merge=True, epochs=total_epochs)
             total_it_each_epoch = len(train_loader) // max(total_epochs, 1)
+
+        with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow("epoch_id;"
+                                "val_loss_avg;"
+                                "AP_Car_3d/0.5_R11;"
+                                "AP_Car_3d/0.5_R40;"
+                                "AP_Car_3d/0.7_R11;"
+                                "AP_Car_3d/0.7_R40;"
+                                "recall/rcnn_0.3;"
+                                "recall/rcnn_0.5;"
+                                "recall/rcnn_0.7;"
+                                "recall/roi_0.3;"
+                                "recall/roi_0.5;"
+                                "recall/roi_0.7;"
+                                "avg_pred_obj")
 
         dataloader_iter = iter(train_loader)
         for cur_epoch in tbar:
@@ -139,17 +157,38 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             # Evaluate epoch
             model.eval()
+            for tag, parm in model.named_parameters():
+                tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
+
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
             ret_dict, val_loss_list = eval_utils.eval_one_epoch(
-                cfg, model, test_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
+                cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
                 result_dir=cur_result_dir, get_val_loss=True
             )
             val_losses = [loss[0].item() for loss in val_loss_list]
             val_loss_avg = sum(val_losses) / len(val_losses)
-            tb_log.add_scalar('eval/val_loss', val_loss_avg, cur_epoch)
-            for key in ret_dict:
-                tb_log.add_scalar(f"eval/{key}", ret_dict[key], cur_epoch)
+            tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
+            result_str = ""
+            for key in sorted(ret_dict):
+                tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
+                result_str += str(ret_dict[key]) + ";"
+            result_str = result_str[:-1]
             model.train()
+
+            # Save results to CSV
+            if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
+                with open(cur_result_dir / 'result.pkl', 'rb') as f:
+                    det_annos = pickle.load(f)
+                    total_pred_objects = 0
+                    for anno in det_annos:
+                        total_pred_objects += anno['name'].__len__()
+                    avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+            else:
+                # results.pkl empty, no predictions
+                avg_pred_obj = 0.0
+            with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+                csv_writer = csv.writer(f)
+                csv_writer.writerow(f"{cur_epoch};{val_loss_avg};{result_str};{avg_pred_obj}")
 
 
 def model_state_to_cpu(model_state):

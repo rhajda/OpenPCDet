@@ -48,7 +48,7 @@ class DistributedSampler(_DistributedSampler):
 
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0,
+                     logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0, epoch_eval=False,
                      shuffle=True, remove_missing_gt=False):
 
     if remove_missing_gt:
@@ -58,6 +58,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
             root_path=root_path,
             training=training,
             logger=logger,
+            epoch_eval=epoch_eval,
             remove_missing_gt=remove_missing_gt
         )
     else: # default
@@ -66,7 +67,8 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
             class_names=class_names,
             root_path=root_path,
             training=training,
-            logger=logger
+            logger=logger,
+            epoch_eval=epoch_eval
         )
 
     if merge_all_iters_to_one_epoch:

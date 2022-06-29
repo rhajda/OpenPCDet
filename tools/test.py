@@ -54,16 +54,89 @@ def parse_config():
     return args, cfg
 
 
-def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False):
+def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=False, tb_log=None):
     # load checkpoint
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=dist_test)
     model.cuda()
+
+    # Weights and biases histogram to tensorboard
+    for tag, parm in model.named_parameters():
+        tb_log.add_histogram(tag, parm.data.cpu().numpy(), epoch_id)
 
     # start evaluation
     eval_utils.eval_one_epoch(
         cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
         result_dir=eval_output_dir, save_to_file=args.save_to_file
     )
+
+
+def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
+    ckpt_list = glob.glob(os.path.join(ckpt_dir, '*checkpoint_epoch_*.pth'))
+    ckpt_list.sort(key=os.path.getmtime)
+    evaluated_ckpt_list = [float(x.strip()) for x in open(ckpt_record_file, 'r').readlines()]
+
+    for cur_ckpt in ckpt_list:
+        num_list = re.findall('checkpoint_epoch_(.*).pth', cur_ckpt)
+        if num_list.__len__() == 0:
+            continue
+
+        epoch_id = num_list[-1]
+        if 'optim' in epoch_id:
+            continue
+        if float(epoch_id) not in evaluated_ckpt_list and int(float(epoch_id)) >= args.start_epoch:
+            return epoch_id, cur_ckpt
+    return -1, None
+
+
+def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=False, tb_log=None):
+    # evaluated ckpt record
+    ckpt_record_file = eval_output_dir / ('eval_list_%s.txt' % cfg.DATA_CONFIG.DATA_SPLIT['test'])
+    with open(ckpt_record_file, 'a'):
+        pass
+
+    total_time = 0
+    first_eval = True
+
+    while True:
+        # check whether there is checkpoint which is not evaluated
+        cur_epoch_id, cur_ckpt = get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args)
+        if cur_epoch_id == -1 or int(float(cur_epoch_id)) < args.start_epoch:
+            wait_second = 30
+            if cfg.LOCAL_RANK == 0:
+                print('Wait %s seconds for next check (progress: %.1f / %d minutes): %s \r'
+                      % (wait_second, total_time * 1.0 / 60, args.max_waiting_mins, ckpt_dir), end='', flush=True)
+            time.sleep(wait_second)
+            total_time += 30
+            if total_time > args.max_waiting_mins * 60 and (first_eval is False):
+                break
+            continue
+
+        total_time = 0
+        first_eval = False
+
+        model.load_params_from_file(filename=cur_ckpt, logger=logger, to_cpu=dist_test)
+        model.cuda()
+
+        # Weights and biases histogram to tensorboard
+        for tag, parm in model.named_parameters():
+            tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch_id)
+
+        # start evaluation
+        cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch_id) / cfg.DATA_CONFIG.DATA_SPLIT['test']
+        tb_dict, _ = eval_utils.eval_one_epoch(
+            cfg, model, test_loader, cur_epoch_id, logger, dist_test=dist_test,
+            result_dir=cur_result_dir, save_to_file=args.save_to_file
+        )
+
+        if cfg.LOCAL_RANK == 0:
+            for key, val in tb_dict.items():
+                tb_log.add_scalar(f"eval_offline/{key}", val, cur_epoch_id)
+
+        # record this epoch which has been evaluated
+        with open(ckpt_record_file, 'a') as f:
+            print('%s' % cur_epoch_id, file=f)
+        logger.info('Epoch %s has been evaluated' % cur_epoch_id)
+
 
 def main():
     args, cfg = parse_config()
@@ -118,15 +191,18 @@ def main():
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=dist_test, workers=args.workers, logger=logger, training=False
+        dist=dist_test, workers=args.workers, logger=logger, training=False, epoch_eval=False
     )
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
+    # Tensorboard
+    tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
+
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set, inference_mode=False)
     with torch.no_grad():
         if args.eval_all:
-            repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test)
+            repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test, tb_log=tb_log)
         else:
-            eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=dist_test)
+            eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id, dist_test=dist_test, tb_log=tb_log)
 
 
 if __name__ == '__main__':

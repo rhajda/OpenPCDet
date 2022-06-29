@@ -4,6 +4,7 @@ import numpy as np
 import open3d as o3d
 from skimage import io
 from tqdm import tqdm
+from pathlib import Path
 import os
 
 from . import kitti_utils
@@ -13,7 +14,8 @@ from ..dataset import DatasetTemplate
 
 
 class IndyDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, remove_missing_gt=False):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, epoch_eval=False, 
+                 remove_missing_gt=False):
         """
         Args:
             root_path:
@@ -23,10 +25,11 @@ class IndyDataset(DatasetTemplate):
             logger:
         """
         super().__init__(
-            dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
+            dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger,
+            epoch_eval=epoch_eval
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+        self.root_split_path = self.root_path / 'training'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
@@ -40,7 +43,9 @@ class IndyDataset(DatasetTemplate):
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
-            self.logger.info('Loading Indy dataset')
+            self.logger.info(f"Loading Indy dataset using samples defined in {self.split}.txt")
+        else:
+            print(f"Loading Indy dataset using samples defined in {self.split}.txt")
         kitti_infos = []
 
         for info_path in self.dataset_cfg.INFO_PATH[mode]:
@@ -49,7 +54,7 @@ class IndyDataset(DatasetTemplate):
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
-                kitti_infos.extend(infos) 
+                kitti_infos.extend(infos)
 
         if self.logger is not None:
             self.logger.info('Total samples for Indy dataset: %d' % (len(kitti_infos)))
@@ -68,24 +73,30 @@ class IndyDataset(DatasetTemplate):
             if len(self.__getitem__(i)['gt_boxes']) > 0: # this entry CAN be used for training
                 new_kitti_info.append(self.kitti_infos[i])
 
-        self.kitti_infos = new_kitti_info 
+        self.kitti_infos = new_kitti_info
         self.missing_gt_reselect = True
         self.only_gt_box = False
         self.data_processor.data_processor_queue = tmp
-        
-        if self.logger is not None:
-            self.logger.info('Total samples for Indy dataset after optimizing: %d' % (len(self.kitti_infos)))
 
+        if self.logger is not None:
+            self.logger.info('Total samples for Indy dataset: %d' % (len(self.kitti_infos)))
+        else:
+            print('Total samples for Indy dataset: %d' % (len(self.kitti_infos)))
 
     def set_split(self, split):
         super().__init__(
             dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training, root_path=self.root_path, logger=self.logger
         )
         self.split = split
-        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+        self.root_split_path = self.root_path / 'training'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+
+        if self.logger is not None:
+            self.logger.info(f"Set split to {self.split}")
+        else:
+            print(f"Set split to {self.split}")
 
     def get_lidar(self, idx):
         lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
@@ -183,19 +194,6 @@ class IndyDataset(DatasetTemplate):
             pc_info = {'num_features': 3, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
 
-###            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
-###            info['image'] = image_info
-###            calib = self.get_calib(sample_idx)
-
-###            P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
-###            R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
-###            R0_4x4[3, 3] = 1.
-###            R0_4x4[:3, :3] = calib.R0
-###            V2C_4x4 = np.concatenate([calib.V2C, np.array([[0., 0., 0., 1.]])], axis=0)
-###            calib_info = {'P2': P2, 'R0_rect': R0_4x4, 'Tr_velo_to_cam': V2C_4x4}
-
-###            info['calib'] = calib_info
-
             if has_label:
                 obj_list = self.get_label(sample_idx)
                 annotations = {}
@@ -222,23 +220,17 @@ class IndyDataset(DatasetTemplate):
                 loc_lidar = loc
                 l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]  # from kitti format!
                 #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
-                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)               
+                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
 
                 if count_inside_pts:
                     points = self.get_lidar(sample_idx)
-###                    calib = self.get_calib(sample_idx)
-###                    pts_rect = calib.lidar_to_rect(points[:, 0:3])
-
-###                    fov_flag = self.get_fov_flag(pts_rect, info['image']['image_shape'], calib)
-###                    pts_fov = points[fov_flag]
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
 
                     for k in range(num_objects):
-###                        flag = box_utils.in_hull(pts_fov[:, 0:3], corners_lidar[k])
                         flag = box_utils.in_hull(points, corners_lidar[k])
                         num_points_in_gt[k] = flag.sum()
                     annotations['num_points_in_gt'] = num_points_in_gt
@@ -336,13 +328,7 @@ class IndyDataset(DatasetTemplate):
             if pred_scores.shape[0] == 0:
                 return pred_dict
 
-            #calib = batch_dict['calib'][batch_index]
-            #image_shape = batch_dict['image_shape'][batch_index].cpu().numpy()
-            #pred_boxes_camera = box_utils.boxes3d_lidar_to_kitti_camera(pred_boxes, calib)
             pred_boxes_camera = np.concatenate([pred_boxes[:, :6], np.expand_dims(pred_boxes[:, 6], axis=-1)], axis=-1)
-            #pred_boxes_img = box_utils.boxes3d_kitti_camera_to_imageboxes(
-            #    pred_boxes_camera, calib, image_shape=image_shape
-            #)
             pred_boxes_img = np.zeros(shape=(pred_scores.shape[0], 4))
 
             pred_dict['name'] = np.array(class_names)[pred_labels - 1]
@@ -407,13 +393,10 @@ class IndyDataset(DatasetTemplate):
         info = copy.deepcopy(self.kitti_infos[index])
 
         sample_idx = info['point_cloud']['lidar_idx']
-###        img_shape = info['image']['image_shape']
-###        calib = self.get_calib(sample_idx)
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
 
         input_dict = {
             'frame_id': sample_idx,
-###            'calib': calib,
         }
 
         if 'annos' in info:
@@ -422,7 +405,6 @@ class IndyDataset(DatasetTemplate):
             loc, dims, rots = annos['location'], annos['dimensions'], annos['rotation_y']
             gt_names = annos['name']
             gt_boxes_camera = np.concatenate([loc, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
-            #gt_boxes_lidar = box_utils.boxes3d_kitti_camera_to_lidar(gt_boxes_camera, calib)
             gt_boxes_lidar = np.concatenate([gt_boxes_camera[:, :6], np.expand_dims(gt_boxes_camera[:, 6], axis=-1)], axis=-1)
 
 
@@ -439,15 +421,12 @@ class IndyDataset(DatasetTemplate):
 
         if self.only_gt_box:
             assert len(self.data_processor.data_processor_queue) == 1 # has to be reduced before using this option!
-            data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
+            data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.
             return data_dict
-    
+
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
             if self.dataset_cfg.FOV_POINTS_ONLY:
-###                pts_rect = calib.lidar_to_rect(points[:, 0:3])
-###                fov_flag = self.get_fov_flag(pts_rect, img_shape, calib)
-###                points = points[fov_flag]
                 points = points[:, 0:3]
             input_dict['points'] = points
 
@@ -460,18 +439,17 @@ class IndyDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
-        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
+        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.
         return data_dict
 
 
 def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
     dataset = IndyDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
-    train_split, val_split = 'train', 'val'
+    train_split, val_split, test_split = 'train', 'val', 'test'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
     val_filename = save_path / ('kitti_infos_%s.pkl' % val_split)
-    trainval_filename = save_path / 'kitti_infos_trainval.pkl'
-    test_filename = save_path / 'kitti_infos_test.pkl'
+    test_filename = save_path / ('kitti_infos_%s.pkl' % test_split)
 
     print('---------------Start to generate data infos---------------')
 
@@ -487,15 +465,11 @@ def create_indy_infos(dataset_cfg, class_names, data_path, save_path, workers=4)
         pickle.dump(kitti_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
 
-    # with open(trainval_filename, 'wb') as f:
-    #     pickle.dump(kitti_infos_train + kitti_infos_val, f)
-    # print('Kitti info trainval file is saved to %s' % trainval_filename)
-    #
-    # dataset.set_split('test')
-    # kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=False, count_inside_pts=False)
-    # with open(test_filename, 'wb') as f:
-    #     pickle.dump(kitti_infos_test, f)
-    # print('Kitti info test file is saved to %s' % test_filename)
+    dataset.set_split(test_split)
+    kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    with open(test_filename, 'wb') as f:
+        pickle.dump(kitti_infos_test, f)
+    print('Kitti info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
     dataset.set_split(train_split)
