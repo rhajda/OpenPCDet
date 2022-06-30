@@ -156,6 +156,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             # Evaluate epoch
             model.eval()
+            model.eval_mode = True
             for tag, parm in model.named_parameters():
                 tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
 
@@ -173,6 +174,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 result_str += str(ret_dict[key]) + ";"
             result_str = result_str[:-1]
             model.train()
+            model.eval_mode = False
 
             # Save results to CSV
             if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
