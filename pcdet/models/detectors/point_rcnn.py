@@ -10,7 +10,7 @@ class PointRCNN(Detector3DTemplate):
         for cur_module in self.module_list:
             batch_dict = cur_module(batch_dict)
 
-        if self.training:
+        if self.training or self.eval_mode:
             loss, tb_dict, disp_dict = self.get_training_loss()
 
             ret_dict = {
