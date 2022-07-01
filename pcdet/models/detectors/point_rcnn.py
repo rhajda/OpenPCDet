@@ -6,14 +6,16 @@ class PointRCNN(Detector3DTemplate):
         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
         self.module_list = self.build_networks()
         for module in self.module_list:
-            module.eval_mode = self.eval_mode
-            module.test = self.test
+            if hasattr(module, "eval_mode"):
+                module.eval_mode = self.eval_mode
+            if hasattr(module, "test"):
+                module.test = self.test
 
     def forward(self, batch_dict):
         for cur_module in self.module_list:
             batch_dict = cur_module(batch_dict)
 
-        if self.training or self.eval_mode:
+        if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
 
             ret_dict = {

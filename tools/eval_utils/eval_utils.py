@@ -50,6 +50,11 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     model.eval()
     model.eval_mode = True
     model.test = True
+    for module in model.module_list:
+        if hasattr(module, "eval_mode"):
+            module.eval_mode = True
+        if hasattr(module, "test"):
+            module.test = True
 
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
@@ -125,6 +130,15 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
 
     logger.info('Result is save to %s' % result_dir)
     logger.info('****************Evaluation done.*****************')
+
+    model.eval_mode = False
+    model.test = False
+    for module in model.module_list:
+        if hasattr(module, "eval_mode"):
+            module.eval_mode = False
+        if hasattr(module, "test"):
+            module.test = False
+
     return ret_dict, val_loss_list
 
 
