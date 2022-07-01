@@ -48,6 +48,8 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
                 broadcast_buffers=False
         )
     model.eval()
+    model.eval_mode = True
+    model.test = True
 
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)

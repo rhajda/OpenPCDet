@@ -8,15 +8,15 @@ from .roi_head_template import RoIHeadTemplate
 
 
 class PointRCNNHead(RoIHeadTemplate):
-    def __init__(self, input_channels, model_cfg, num_class=1, eval_mode=False, test=False, **kwargs):
+    def __init__(self, input_channels, model_cfg, num_class=1, **kwargs):
         super().__init__(num_class=num_class, model_cfg=model_cfg)
         self.model_cfg = model_cfg
         use_bn = self.model_cfg.USE_BN
         self.SA_modules = nn.ModuleList()
         channel_in = input_channels
 
-        self.eval_mode = eval_mode
-        self.test = test
+        self.eval_mode = False
+        self.test = False
 
         self.num_prefix_channels = 3 + 2  # xyz + point_scores + point_depth
         xyz_mlps = [self.num_prefix_channels] + self.model_cfg.XYZ_UP_LAYER
