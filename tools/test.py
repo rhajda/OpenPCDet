@@ -190,13 +190,17 @@ def main():
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=dist_test, workers=args.workers, logger=logger, training=False, epoch_eval=False
+        dist=dist_test, workers=args.workers, logger=logger,
+        training=False,
+        eval_mode=True,
+        test=True
     )
 
     # Tensorboard
     tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set, inference_mode=False)
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set, eval_mode=True,
+                          test=True)
     with torch.no_grad():
         if args.eval_all:
             repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test, tb_log=tb_log)
