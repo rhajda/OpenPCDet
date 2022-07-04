@@ -129,7 +129,7 @@ def main():
         total_epochs=args.epochs,
         training=True,
         eval_mode=False,
-        test=False
+        test=False,
         tb_log=tb_log
     )
 
