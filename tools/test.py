@@ -146,7 +146,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
 
         result_str = ""
         if cfg.LOCAL_RANK == 0:
-            for key, val in tb_dict.items():
+            for key, val in sorted(tb_dict.items()):
                 tb_log.add_scalar(f"eval_offline/{key}", val, cur_epoch_id)
                 result_str += str(val) + ";"
             result_str = result_str[:-1]
