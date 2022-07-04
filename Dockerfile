@@ -11,3 +11,4 @@ RUN python setup.py develop
 
 ENV PYTHONPATH=/home
 ENV XAUTHORITY=/home/.Xauthority
+ENV CUBLAS_WORKSPACE_CONFIG=:4096:2
