@@ -1,4 +1,4 @@
-FROM openpcdet-base:latest
+FROM openpcdet-base111:latest
 
 RUN apt-get install libgl1-mesa-glx vim -y
 
