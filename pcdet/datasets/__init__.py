@@ -2,6 +2,9 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import DistributedSampler as _DistributedSampler
 
+import numpy as np
+import random
+
 from pcdet.utils import common_utils
 
 from .dataset import DatasetTemplate
@@ -47,6 +50,12 @@ class DistributedSampler(_DistributedSampler):
         return iter(indices)
 
 
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
                      logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0, training=True, eval_mode=False,
                      test=False):
@@ -73,10 +82,14 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
             sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
+
+    g = torch.Generator()
+    g.manual_seed(777)
+
     dataloader = DataLoader(
         dataset, batch_size=batch_size, pin_memory=True, num_workers=workers,
         shuffle=(sampler is None) and training, collate_fn=dataset.collate_batch,
-        drop_last=False, sampler=sampler, timeout=0
+        drop_last=False, sampler=sampler, timeout=0, worker_init_fn=seed_worker,
     )
 
     return dataset, dataloader, sampler
