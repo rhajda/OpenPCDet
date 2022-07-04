@@ -130,6 +130,7 @@ def main():
         training=True,
         eval_mode=False,
         test=False
+        tb_log=tb_log
     )
 
     val_set, val_loader, val_sampler = build_dataloader(

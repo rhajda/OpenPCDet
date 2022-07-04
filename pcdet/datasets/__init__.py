@@ -58,7 +58,7 @@ def seed_worker(worker_id):
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
                      logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0, training=True, eval_mode=False,
-                     test=False):
+                     test=False, tb_log=None):
 
     dataset = __all__[dataset_cfg.DATASET](
         dataset_cfg=dataset_cfg,
@@ -68,6 +68,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
         logger=logger,
         eval_mode=eval_mode,
         test=test,
+        tb_log=tb_log
     )
 
     if merge_all_iters_to_one_epoch:
