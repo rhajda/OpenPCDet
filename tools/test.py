@@ -5,6 +5,8 @@ import glob
 import os
 import re
 import time
+import csv
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -96,6 +98,21 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
     total_time = 0
     first_eval = True
 
+    with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(["epoch_id",
+                             "AP_Car_3d/0.5_R11",
+                             "AP_Car_3d/0.5_R40",
+                             "AP_Car_3d/0.7_R11",
+                             "AP_Car_3d/0.7_R40",
+                             "recall/rcnn_0.3",
+                             "recall/rcnn_0.5",
+                             "recall/rcnn_0.7",
+                             "recall/roi_0.3",
+                             "recall/roi_0.5",
+                             "recall/roi_0.7",
+                             "avg_pred_obj"])
+
     while True:
         # check whether there is checkpoint which is not evaluated
         cur_epoch_id, cur_ckpt = get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args)
@@ -127,9 +144,27 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
             result_dir=cur_result_dir, save_to_file=args.save_to_file
         )
 
+        result_str = ""
         if cfg.LOCAL_RANK == 0:
             for key, val in tb_dict.items():
                 tb_log.add_scalar(f"eval_offline/{key}", val, cur_epoch_id)
+                result_str += str(val) + ";"
+            result_str = result_str[:-1]
+
+        # Save results to csv
+        if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
+            with open(cur_result_dir / 'result.pkl', 'rb') as f:
+                det_annos = pickle.load(f)
+                total_pred_objects = 0
+                for anno in det_annos:
+                    total_pred_objects += anno['name'].__len__()
+                avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+        else:
+            # results.pkl empty, no predictions
+            avg_pred_obj = 0.0
+        with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow([cur_epoch_id, result_str, avg_pred_obj])
 
         # record this epoch which has been evaluated
         with open(ckpt_record_file, 'a') as f:
