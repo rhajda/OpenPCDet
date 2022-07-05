@@ -2,6 +2,7 @@ FROM openpcdet-base113:latest
 
 RUN apt-get install libgl1-mesa-glx vim -y
 
+RUN pip install open3d
 
 WORKDIR /home
 COPY . .
