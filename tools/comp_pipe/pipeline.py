@@ -122,7 +122,7 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
         shuffle=shuffle,
         remove_missing_gt = remove_missing_gt
     )
-    dataset.test_set, dataset.test_loader, dataset.sampler = build_dataloader(
+    dataset.test_set, dataset.val_loader, dataset.sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
@@ -201,7 +201,7 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
         max_ckpt_save_num=args.max_ckpt_save_num,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
         cfg=cfg,
-        test_loader=dataset.test_loader,
+        val_loader=dataset.val_loader,
         logger=args.logger,
         eval_output_dir=args.eval_output_dir
     )
@@ -217,7 +217,7 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
 
         args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
 
-        repeat_eval_ckpt(model, dataset.test_loader, args, args.eval_output_dir, 
+        repeat_eval_ckpt(model, dataset.val_loader, args, args.eval_output_dir, 
                         args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
         args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
                     (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))

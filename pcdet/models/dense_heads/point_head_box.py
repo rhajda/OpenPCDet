@@ -112,8 +112,8 @@ class PointHeadBox(PointHeadTemplate):
             batch_dict['batch_box_preds'] = point_box_preds
             batch_dict['batch_index'] = batch_dict['point_coords'][:, 0]
             batch_dict['cls_preds_normalized'] = False
-            if self.epoch_eval or not self.inference_mode:
-                targets_dict = self.assign_targets(batch_dict)
+            if (self.epoch_eval or not self.inference_mode) and 'gt_boxes'in batch_dict.keys():
+                targets_dict = self.assign_targets(batch_dict) 
                 ret_dict['point_cls_labels'] = targets_dict['point_cls_labels']
                 ret_dict['point_box_labels'] = targets_dict['point_box_labels']
 
