@@ -12,11 +12,12 @@ from .processor.point_feature_encoder import PointFeatureEncoder
 
 class DatasetTemplate(torch_data.Dataset):
     def __init__(self, dataset_cfg=None, class_names=None, training=True, root_path=None, logger=None,
-                 epoch_eval=False):
+                 eval_mode=False, test=False):
         super().__init__()
         self.dataset_cfg = dataset_cfg
         self.training = training
-        self.epoch_eval = epoch_eval
+        self.eval_mode = eval_mode
+        self.test = test
         self.class_names = class_names
         self.logger = logger
         self.root_path = root_path if root_path is not None else Path(self.dataset_cfg.DATA_PATH)
@@ -34,7 +35,7 @@ class DatasetTemplate(torch_data.Dataset):
         ) if self.training else None
         self.data_processor = DataProcessor(
             self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range,
-            training=self.training, num_point_features=self.point_feature_encoder.num_point_features
+            training=self.training, num_point_features=self.point_feature_encoder.num_point_features, mode=self.mode
         )
 
         self.grid_size = self.data_processor.grid_size
@@ -48,16 +49,20 @@ class DatasetTemplate(torch_data.Dataset):
             self.depth_downsample_factor = None
 
         self.missing_gt_reselect = True
-        
+
     @property
     def mode(self):
         if self.training:
-            if self.epoch_eval:
-                return "val"
-            else:
-                return "train"
+            return "train"
         else:
-            return "test"
+            if self.eval_mode:
+                if self.test:
+                    return "test"
+                else:
+                    return "val"
+            else:
+                # inference mode
+                return "test"
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -129,7 +134,7 @@ class DatasetTemplate(torch_data.Dataset):
                 voxel_coords: optional (num_voxels, 3)
                 voxel_num_points: optional (num_voxels)
                 ...
-        """        
+        """
         if self.training:
             assert 'gt_boxes' in data_dict, 'gt_boxes should be provided for training'
             gt_boxes_mask = np.array([n in self.class_names for n in data_dict['gt_names']], dtype=np.bool_)
@@ -141,7 +146,7 @@ class DatasetTemplate(torch_data.Dataset):
                 }
             )
 
-        if data_dict.get('gt_boxes', None) is not None: 
+        if data_dict.get('gt_boxes', None) is not None:
             selected = common_utils.keep_arrays_by_name(data_dict['gt_names'], self.class_names)
             data_dict['gt_boxes'] = data_dict['gt_boxes'][selected]
             data_dict['gt_names'] = data_dict['gt_names'][selected]
@@ -158,8 +163,8 @@ class DatasetTemplate(torch_data.Dataset):
         data_dict = self.data_processor.forward(
             data_dict=data_dict # gt_boxes might be removed here
         )
-        
-        if self.training and len(data_dict['gt_boxes']) == 0 and self.missing_gt_reselect:
+
+        if (self.eval_mode or self.training) and len(data_dict['gt_boxes']) == 0 and self.missing_gt_reselect:
             new_index = np.random.randint(self.__len__())
             print("Reselect due to excluded gt performed!")
             return self.__getitem__(new_index)

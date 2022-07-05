@@ -9,13 +9,15 @@ DATA_CONFIG:
 
         -   NAME: sample_points
             NUM_POINTS: {
-                'train': 32768, # original is half # taken from fixed radius!
+                'train': 32768,
+                'val': 32768,
                 'test': 32768
             }
 
         -   NAME: shuffle_points
             SHUFFLE_ENABLED: {
                 'train': True,
+                'val': False,
                 'test': False
             }
 
@@ -90,6 +92,12 @@ MODEL:
                 NMS_PRE_MAXSIZE: 9000
                 NMS_POST_MAXSIZE: 512
                 NMS_THRESH: 0.8
+            VAL:
+                NMS_TYPE: nms_gpu
+                MULTI_CLASSES_NMS: False
+                NMS_PRE_MAXSIZE: 9000
+                NMS_POST_MAXSIZE: 100
+                NMS_THRESH: 0.85
             TEST:
                 NMS_TYPE: nms_gpu
                 MULTI_CLASSES_NMS: False

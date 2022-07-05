@@ -104,19 +104,19 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
         with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
             csv_writer = csv.writer(f)
-            csv_writer.writerow("epoch_id;"
-                                "val_loss_avg;"
-                                "AP_Car_3d/0.5_R11;"
-                                "AP_Car_3d/0.5_R40;"
-                                "AP_Car_3d/0.7_R11;"
-                                "AP_Car_3d/0.7_R40;"
-                                "recall/rcnn_0.3;"
-                                "recall/rcnn_0.5;"
-                                "recall/rcnn_0.7;"
-                                "recall/roi_0.3;"
-                                "recall/roi_0.5;"
-                                "recall/roi_0.7;"
-                                "avg_pred_obj")
+            csv_writer.writerow(["epoch_id",
+                                 "val_loss_avg",
+                                 "AP_Car_3d/0.5_R11",
+                                 "AP_Car_3d/0.5_R40",
+                                 "AP_Car_3d/0.7_R11",
+                                 "AP_Car_3d/0.7_R40",
+                                 "recall/rcnn_0.3",
+                                 "recall/rcnn_0.5",
+                                 "recall/rcnn_0.7",
+                                 "recall/roi_0.3",
+                                 "recall/roi_0.5",
+                                 "recall/roi_0.7",
+                                 "avg_pred_obj"])
 
         dataloader_iter = iter(train_loader)
         for cur_epoch in tbar:
@@ -157,6 +157,10 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
             # Evaluate epoch
             model.eval()
+            model.eval_mode = True
+            for module in model.module_list:
+                if hasattr(module, "eval_mode"):
+                    module.eval_mode = True
             for tag, parm in model.named_parameters():
                 tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
 
@@ -174,6 +178,10 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 result_str += str(ret_dict[key]) + ";"
             result_str = result_str[:-1]
             model.train()
+            model.eval_mode = False
+            for module in model.module_list:
+                if hasattr(module, "eval_mode"):
+                    module.eval_mode = False
 
             # Save results to CSV
             if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
@@ -188,7 +196,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 avg_pred_obj = 0.0
             with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
                 csv_writer = csv.writer(f)
-                csv_writer.writerow(f"{cur_epoch};{val_loss_avg};{result_str};{avg_pred_obj}")
+                csv_writer.writerow([cur_epoch, val_loss_avg, result_str, avg_pred_obj])
 
 
 def model_state_to_cpu(model_state):

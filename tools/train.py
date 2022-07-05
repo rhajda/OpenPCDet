@@ -9,6 +9,22 @@ import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
+
+def set_random_seed(seed):
+    # set fixed determinism seed
+    import random
+    import numpy as np
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
+
+
+set_random_seed(777)
+
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
 from pcdet.models import build_network, model_fn_decorator
@@ -110,20 +126,25 @@ def main():
         batch_size=args.batch_size,
         dist=dist_train, workers=args.workers,
         logger=logger,
-        training=True,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        total_epochs=args.epochs
+        total_epochs=args.epochs,
+        training=True,
+        eval_mode=False,
+        test=False,
+        tb_log=tb_log
     )
 
     val_set, val_loader, val_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
         batch_size=args.batch_size,
-        dist=dist_train, workers=args.workers, logger=logger, training=True, epoch_eval=True
+        dist=dist_train, workers=args.workers, logger=logger,
+        training=False,
+        eval_mode=True,
+        test=False
     )
 
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, epoch_eval=True,
-                          inference_mode=False)
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set, tb_log=tb_log)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()

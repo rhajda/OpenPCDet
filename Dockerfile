@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 # See here for image contents: https://github.com/microsoft/vscode-dev-containers/tree/v0.234.0/containers/python-3/.devcontainer/base.Dockerfile
 
 FROM openpcdet-base:latest
+=======
+FROM openpcdet-base113:latest
+>>>>>>> origin/determinism
 
 # RUN apt-get -o Dpkg::Options::="--force-overwrite" install nvidia-cuda-toolkit -y --fix-broken
 RUN pip install --upgrade pip
@@ -31,6 +35,7 @@ RUN pip install -e .
 
 ENV PYTHONPATH=/home
 ENV XAUTHORITY=/home/.Xauthority
+<<<<<<< HEAD
 
 
 # [Optional] If your pip requirements rarely change, uncomment this section to add them to the image.
@@ -41,3 +46,6 @@ ENV XAUTHORITY=/home/.Xauthority
 # [Optional] Uncomment this section to install additional OS packages.
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 #     && apt-get -y install --no-install-recommends <your-package-list-here>
+=======
+ENV CUBLAS_WORKSPACE_CONFIG=:4096:8
+>>>>>>> origin/determinism

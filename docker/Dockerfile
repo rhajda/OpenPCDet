@@ -1,4 +1,4 @@
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04
 
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
@@ -36,11 +36,11 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && \
 
 # Install python packages
 RUN PIP_INSTALL="python -m pip --no-cache-dir install" && \
-    $PIP_INSTALL numpy==1.19.3 llvmlite numba 
+    $PIP_INSTALL numpy==1.19.3 llvmlite numba
 
 # Install torch and torchvision
 # See https://pytorch.org/ for other options if you use a different version of CUDA
-RUN pip install --user torch==1.6 torchvision==0.7.0 -f https://download.pytorch.org/whl/cu102/torch_stable.html
+RUN pip install --user torch==1.11.0+cu113 torchvision==0.12.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html
 
 # Install python packages
 RUN PIP_INSTALL="python -m pip --no-cache-dir install" && \
@@ -53,10 +53,10 @@ RUN wget https://jaist.dl.sourceforge.net/project/boost/boost/1.68.0/boost_1_68_
     tar xzvf boost_1_68_0.tar.gz && \
     cp -r ./boost_1_68_0/boost /usr/include && \
     rm -rf ./boost_1_68_0 && \
-    rm -rf ./boost_1_68_0.tar.gz 
+    rm -rf ./boost_1_68_0.tar.gz
 
 # A weired problem that hasn't been solved yet
 RUN pip uninstall -y SharedArray && \
     pip install SharedArray
 
-RUN pip install spconv-cu102
+RUN pip install spconv-cu113

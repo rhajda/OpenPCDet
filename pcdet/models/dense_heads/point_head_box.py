@@ -10,8 +10,7 @@ class PointHeadBox(PointHeadTemplate):
     Reference Paper: https://arxiv.org/abs/1812.04244
     PointRCNN: 3D Object Proposal Generation and Detection from Point Cloud
     """
-    def __init__(self, num_class, input_channels, model_cfg, predict_boxes_when_training=False, epoch_eval=False,
-                 inference_mode=False, **kwargs):
+    def __init__(self, num_class, input_channels, model_cfg, predict_boxes_when_training=False, **kwargs):
         super().__init__(model_cfg=model_cfg, num_class=num_class)
         self.predict_boxes_when_training = predict_boxes_when_training
         self.cls_layers = self.make_fc_layers(
@@ -19,8 +18,7 @@ class PointHeadBox(PointHeadTemplate):
             input_channels=input_channels,
             output_channels=num_class
         )
-        self.epoch_eval = epoch_eval
-        self.inference_mode = inference_mode
+        self.eval_mode = False
 
         target_cfg = self.model_cfg.TARGET_CONFIG
         self.box_coder = getattr(box_coder_utils, target_cfg.BOX_CODER)(
@@ -112,8 +110,8 @@ class PointHeadBox(PointHeadTemplate):
             batch_dict['batch_box_preds'] = point_box_preds
             batch_dict['batch_index'] = batch_dict['point_coords'][:, 0]
             batch_dict['cls_preds_normalized'] = False
-            if (self.epoch_eval or not self.inference_mode) and 'gt_boxes'in batch_dict.keys():
-                targets_dict = self.assign_targets(batch_dict) 
+            if self.eval_mode and 'gt_boxes'in batch_dict.keys(): # (self.epoch_eval or not self.inference_mode)
+                targets_dict = self.assign_targets(batch_dict)
                 ret_dict['point_cls_labels'] = targets_dict['point_cls_labels']
                 ret_dict['point_box_labels'] = targets_dict['point_box_labels']
 

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-nvidia-docker build ./ -t  openpcdet-base
+docker build ./ -t  openpcdet-base113

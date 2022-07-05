@@ -15,7 +15,7 @@ from ..dataset import DatasetTemplate
 
 class IndyDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, epoch_eval=False, 
-                 remove_missing_gt=False):
+                 remove_missing_gt=False, test=False, tb_log=None):
         """
         Args:
             root_path:
@@ -26,13 +26,16 @@ class IndyDataset(DatasetTemplate):
         """
         super().__init__(
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger,
-            epoch_eval=epoch_eval
+            eval_mode=eval_mode, test=test
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / 'training'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
+
+        self.tb_log = tb_log
+        self.idx_counter = 0
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
@@ -387,6 +390,9 @@ class IndyDataset(DatasetTemplate):
 
     def __getitem__(self, index):
         # index = 4
+        if self.tb_log is not None:
+            self.tb_log.add_scalar('train/sample_idx', index, self.idx_counter)
+            self.idx_counter += 1
         if self._merge_all_iters_to_one_epoch:
             index = index % len(self.kitti_infos)
 
