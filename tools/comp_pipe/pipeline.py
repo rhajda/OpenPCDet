@@ -1,7 +1,7 @@
 '''
 Pipeline for comparing real vs simulated data.
 
-Currently writte to be run on single GPU.
+Currently assumed to be run on single GPU.
 '''
 import time
 from path_handle import paths
@@ -146,7 +146,7 @@ def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:ea
     :param cfg: _description_
     """
     # setup model
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=dataset.train_set, epoch_eval=True)
+    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=dataset.train_set)
     model.cuda()
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
 

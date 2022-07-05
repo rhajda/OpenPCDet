@@ -57,7 +57,7 @@ def seed_worker(worker_id):
 
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0, epoch_eval=False,
+                     logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0, eval_mode=False,
                      shuffle=True, remove_missing_gt=False):
 
     if remove_missing_gt:
@@ -67,7 +67,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
             root_path=root_path,
             training=training,
             logger=logger,
-            epoch_eval=epoch_eval,
+            eval_mode=eval_mode,
             remove_missing_gt=remove_missing_gt
         )
     else: # default
@@ -77,7 +77,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
             root_path=root_path,
             training=training,
             logger=logger,
-            epoch_eval=epoch_eval
+            eval_mode=eval_mode
         )
 
     if merge_all_iters_to_one_epoch:

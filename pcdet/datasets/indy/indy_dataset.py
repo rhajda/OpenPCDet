@@ -14,7 +14,7 @@ from ..dataset import DatasetTemplate
 
 
 class IndyDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, epoch_eval=False, 
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, eval_mode=False, 
                  remove_missing_gt=False, test=False, tb_log=None):
         """
         Args:
