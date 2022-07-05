@@ -3,13 +3,13 @@ CLASS_NAMES: ['Car']
 DATA_CONFIG:
     _BASE_CONFIG_: cfgs/dataset_configs/indy_dataset.yaml
 
-    DATA_PROCESSOR:
+    DATA_PROCESSOR: # This overwrites the DAPTA_PROCESSOR given in the 'dataset_configs/indy_dataset'
         -   NAME: mask_points_and_boxes_outside_range
             REMOVE_OUTSIDE_BOXES: True
 
         -   NAME: sample_points
             NUM_POINTS: {
-                'train': 32768,
+                'train': 32768, # original is half # taken from fixed radius!
                 'val': 32768,
                 'test': 32768
             }

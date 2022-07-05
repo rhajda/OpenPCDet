@@ -8,7 +8,7 @@ import tqdm
 import time
 from torch.nn.utils import clip_grad_norm_
 from pcdet.utils import common_utils, commu_utils
-from eval_utils import eval_utils
+from tools.eval_utils import eval_utils
 
 
 def train_one_epoch(model, optimizer, train_loader, model_func, lr_scheduler, accumulated_iter, optim_cfg,
@@ -120,6 +120,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
         dataloader_iter = iter(train_loader)
         for cur_epoch in tbar:
+            logger.info(f'Currently running epoch: {cur_epoch}')
             if train_sampler is not None:
                 train_sampler.set_epoch(cur_epoch)
 

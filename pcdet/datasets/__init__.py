@@ -57,19 +57,33 @@ def seed_worker(worker_id):
 
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0, training=True, eval_mode=False,
+                     logger=None, merge_all_iters_to_one_epoch=False, total_epochs=0,
+                     shuffle=True, remove_missing_gt=False, training=True, eval_mode=False,
                      test=False, tb_log=None):
 
-    dataset = __all__[dataset_cfg.DATASET](
-        dataset_cfg=dataset_cfg,
-        class_names=class_names,
-        root_path=root_path,
-        training=training,
-        logger=logger,
-        eval_mode=eval_mode,
-        test=test,
-        tb_log=tb_log
-    )
+    if remove_missing_gt:
+        dataset = __all__[dataset_cfg.DATASET](
+            dataset_cfg=dataset_cfg,
+            class_names=class_names,
+            root_path=root_path,
+            training=training,
+            logger=logger,
+            remove_missing_gt=remove_missing_gt,
+            eval_mode=eval_mode,
+            test=test,
+            tb_log=tb_log
+        )
+    else:  # default
+        dataset = __all__[dataset_cfg.DATASET](
+            dataset_cfg=dataset_cfg,
+            class_names=class_names,
+            root_path=root_path,
+            training=training,
+            logger=logger,
+            eval_mode=eval_mode,
+            test=test,
+            tb_log=tb_log
+        )
 
     if merge_all_iters_to_one_epoch:
         assert hasattr(dataset, 'merge_all_iters_to_one_epoch')
@@ -89,7 +103,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
 
     dataloader = DataLoader(
         dataset, batch_size=batch_size, pin_memory=True, num_workers=workers,
-        shuffle=(sampler is None) and training, collate_fn=dataset.collate_batch,
+        shuffle=(sampler is None and shuffle)  and training, collate_fn=dataset.collate_batch,
         drop_last=False, sampler=sampler, timeout=0, worker_init_fn=seed_worker, generator=g
     )
 

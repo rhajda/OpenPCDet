@@ -7,6 +7,7 @@ import open3d
 import torch
 import matplotlib
 import numpy as np
+from matplotlib import pyplot as plt
 
 box_colormap = [
     [1, 1, 1],
@@ -35,7 +36,7 @@ def get_coor_colors(obj_labels):
     return label_rgba
 
 
-def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scores=None, point_colors=None, draw_origin=True):
+def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scores=None, point_colors=None, draw_origin=True, just_image=False):
     if isinstance(points, torch.Tensor):
         points = points.cpu().numpy()
     if isinstance(gt_boxes, torch.Tensor):
@@ -44,7 +45,7 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scor
         ref_boxes = ref_boxes.cpu().numpy()
 
     vis = open3d.visualization.Visualizer()
-    vis.create_window()
+    vis.create_window(visible=not just_image)
 
     vis.get_render_option().point_size = 1.0
     vis.get_render_option().background_color = np.zeros(3)
@@ -69,9 +70,18 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scor
     if ref_boxes is not None:
         vis = draw_box(vis, ref_boxes, (0, 1, 0), ref_labels, ref_scores)
 
-    vis.run()
-    vis.destroy_window()
-
+    if not just_image:
+        vis.run()
+        vis.destroy_window()
+    else:
+        viewctrl = vis.get_view_control()
+        viewctrl.set_lookat(np.array([0.0, -70.0, 0.0]))
+        vis.poll_events()
+        vis.update_renderer()
+        img = vis.capture_screen_float_buffer(do_render=True)
+        vis.destroy_window()
+        matplotlib.image.imsave('name.png', img)
+        
 
 def translate_boxes_to_open3d_instance(gt_boxes):
     """

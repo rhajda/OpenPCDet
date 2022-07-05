@@ -3,6 +3,8 @@ import pickle
 import numpy as np
 import open3d as o3d
 from skimage import io
+from tqdm import tqdm
+import os
 
 from . import kitti_utils
 from ...ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -11,8 +13,8 @@ from ..dataset import DatasetTemplate
 
 
 class IndyDataset(DatasetTemplate):
-    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, eval_mode=False,
-                 test=False, tb_log=None):
+    def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, remove_missing_gt=False,
+                 eval_mode=False, test=False, tb_log=None):
         """
         Args:
             root_path:
@@ -36,6 +38,10 @@ class IndyDataset(DatasetTemplate):
 
         self.kitti_infos = []
         self.include_kitti_data(self.mode)
+        self.original_dataset_size = len(self.kitti_infos)
+        self.only_gt_box = False
+        if remove_missing_gt:
+            self.remove_missing_gt_samples()
 
     def include_kitti_data(self, mode):
         if self.logger is not None:
@@ -58,6 +64,26 @@ class IndyDataset(DatasetTemplate):
             self.logger.info('Total samples for Indy dataset: %d' % (len(kitti_infos)))
         else:
             print('Total samples for Indy dataset: %d' % (len(kitti_infos)))
+
+    def remove_missing_gt_samples(self):
+
+        self.missing_gt_reselect = False # avoids re-selecting => gt removed below
+        self.only_gt_box = True
+        tmp = copy.deepcopy(self.data_processor.data_processor_queue)
+        self.data_processor.data_processor_queue =tmp[:1]
+
+        new_kitti_info = []
+        for i in tqdm(range(len(self.kitti_infos)), desc="Remove data with gt not in range"):
+            if len(self.__getitem__(i)['gt_boxes']) > 0: # this entry CAN be used for training
+                new_kitti_info.append(self.kitti_infos[i])
+
+        self.kitti_infos = new_kitti_info 
+        self.missing_gt_reselect = True
+        self.only_gt_box = False
+        self.data_processor.data_processor_queue = tmp
+        
+        if self.logger is not None:
+            self.logger.info('Total samples for Indy dataset after optimizing: %d' % (len(self.kitti_infos)))
 
     def set_split(self, split):
         super().__init__(
@@ -397,6 +423,11 @@ class IndyDataset(DatasetTemplate):
             if road_plane is not None:
                 input_dict['road_plane'] = road_plane
 
+        if self.only_gt_box:
+            assert len(self.data_processor.data_processor_queue) == 1 # has to be reduced before using this option!
+            data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
+            return data_dict
+    
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
             if self.dataset_cfg.FOV_POINTS_ONLY:
@@ -412,7 +443,7 @@ class IndyDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
-        data_dict = self.prepare_data(data_dict=input_dict)
+        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
         return data_dict
 
 

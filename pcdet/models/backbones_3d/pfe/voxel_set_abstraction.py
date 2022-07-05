@@ -369,6 +369,9 @@ class VoxelSetAbstraction(nn.Module):
         if 'raw_points' in self.model_cfg.FEATURES_SOURCE:
             raw_points = batch_dict['points']
 
+            
+            # According to: 
+            # 's (x, y, z) coordinate and an additional reflectance value (r)' thus it seems, that the xyz_features represent the reflectance value. 
             pooled_features = self.aggregate_keypoint_features_from_one_source(
                 batch_size=batch_size, aggregate_func=self.SA_rawpoints,
                 xyz=raw_points[:, 1:4],
