@@ -283,7 +283,8 @@ class VoxelSetAbstraction(nn.Module):
     @staticmethod
     def aggregate_keypoint_features_from_one_source(
             batch_size, aggregate_func, xyz, xyz_features, xyz_bs_idxs, new_xyz, new_xyz_batch_cnt,
-            filter_neighbors_with_roi=False, radius_of_neighbor=None, num_max_points_of_part=200000, rois=None
+            filter_neighbors_with_roi=False, radius_of_neighbor=None, num_max_points_of_part=200000, rois=None,
+            ignore_xyz_features=True
     ):
         """
 
@@ -321,6 +322,9 @@ class VoxelSetAbstraction(nn.Module):
         else:
             for bs_idx in range(batch_size):
                 xyz_batch_cnt[bs_idx] = (xyz_bs_idxs == bs_idx).sum()
+
+        if xyz_features is None and ignore_xyz_features:
+            xyz_features = torch.zeros(size=(xyz.shape[0], 1))
 
         pooled_points, pooled_features = aggregate_func(
             xyz=xyz.contiguous(),
@@ -369,9 +373,9 @@ class VoxelSetAbstraction(nn.Module):
         if 'raw_points' in self.model_cfg.FEATURES_SOURCE:
             raw_points = batch_dict['points']
 
-            
-            # According to: 
-            # 's (x, y, z) coordinate and an additional reflectance value (r)' thus it seems, that the xyz_features represent the reflectance value. 
+
+            # According to:
+            # 's (x, y, z) coordinate and an additional reflectance value (r)' thus it seems, that the xyz_features represent the reflectance value.
             pooled_features = self.aggregate_keypoint_features_from_one_source(
                 batch_size=batch_size, aggregate_func=self.SA_rawpoints,
                 xyz=raw_points[:, 1:4],

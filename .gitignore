@@ -17,3 +17,4 @@ version.py
 .vscode/
 *.png
 data_local/
+full_mount/
