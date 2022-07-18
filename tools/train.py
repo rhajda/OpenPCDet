@@ -4,6 +4,7 @@ import datetime
 import glob
 import os
 from pathlib import Path
+import subprocess
 
 import torch
 import torch.nn as nn
@@ -31,6 +32,13 @@ from pcdet.models import build_network, model_fn_decorator
 from pcdet.utils import common_utils
 from train_utils.optimization import build_optimizer, build_scheduler
 from train_utils.train_utils import train_model
+
+
+def log_git_data(logger):
+    commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
+    git_branch =  subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('ascii').strip()
+    logger.info(f'Git commit hash: {commit_hash}')
+    logger.info(f'Git current branch: {git_branch}')
 
 
 def parse_config():
@@ -107,6 +115,7 @@ def main():
 
     # log to file
     logger.info('**********************Start logging**********************')
+    log_git_data(logger)
     gpu_list = os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() else 'ALL'
     logger.info('CUDA_VISIBLE_DEVICES=%s' % gpu_list)
 
