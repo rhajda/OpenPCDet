@@ -323,15 +323,13 @@ class VoxelSetAbstraction(nn.Module):
             for bs_idx in range(batch_size):
                 xyz_batch_cnt[bs_idx] = (xyz_bs_idxs == bs_idx).sum()
 
-        if xyz_features is None and ignore_xyz_features:
-            xyz_features = torch.zeros(size=(xyz.shape[0], 1))
-
+        
         pooled_points, pooled_features = aggregate_func(
             xyz=xyz.contiguous(),
             xyz_batch_cnt=xyz_batch_cnt,
             new_xyz=new_xyz,
             new_xyz_batch_cnt=new_xyz_batch_cnt,
-            features=xyz_features.contiguous(),
+            features=xyz_features.contiguous() if xyz_features is not None else None,
         )
         return pooled_features
 

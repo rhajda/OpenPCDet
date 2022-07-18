@@ -18,3 +18,4 @@ version.py
 *.png
 data_local/
 full_mount/
+output_2/

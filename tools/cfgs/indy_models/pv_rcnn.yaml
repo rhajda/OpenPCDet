@@ -3,23 +3,50 @@ CLASS_NAMES: ['Car']
 DATA_CONFIG:
     _BASE_CONFIG_: cfgs/dataset_configs/indy_dataset.yaml
 
-    # DATA_AUGMENTOR:
-    #     DISABLE_AUG_LIST: ['placeholder']
-    #     AUG_CONFIG_LIST:
-    #         - NAME: gt_sampling
-    #           USE_ROAD_PLANE: False  # set to true?
-    #           DB_INFO_PATH:
-    #               - kitti_dbinfos_train.pkl
-    #           PREPARE: {
-    #              filter_by_min_points: ['Car:5'],
-    #             #  filter_by_difficulty: [-1],
-    #           }
+    DATA_AUGMENTOR:
+        DISABLE_AUG_LIST: ['placeholder']
+        AUG_CONFIG_LIST:
+            - NAME: gt_sampling
+              USE_ROAD_PLANE: False  # set to true?
+              DB_INFO_PATH:
+                  - kitti_dbinfos_train.pkl
+              PREPARE: {
+                 filter_by_min_points: ['Car:5'],
+                #  filter_by_difficulty: [-1],
+              }
 
-    #           SAMPLE_GROUPS: ['Car:15']
-    #           NUM_POINT_FEATURES: 4
-    #           DATABASE_WITH_FAKELIDAR: False
-    #           REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
-    #           LIMIT_WHOLE_SCENE: False
+              SAMPLE_GROUPS: ['Car:15']
+              NUM_POINT_FEATURES: 4
+              DATABASE_WITH_FAKELIDAR: False
+              REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
+              LIMIT_WHOLE_SCENE: False
+    
+    DATA_PROCESSOR:
+        -   NAME: mask_points_and_boxes_outside_range
+            REMOVE_OUTSIDE_BOXES: True
+
+        # -   NAME: sample_points
+        #     NUM_POINTS: {
+        #         'train': 32768,
+        #         'val': 32768,
+        #         'test': 32768
+        #     }
+
+        -   NAME: shuffle_points
+            SHUFFLE_ENABLED: {
+                'train': True,
+                'val': False,
+                'test': False
+            }
+            
+        -   NAME: transform_points_to_voxels
+            VOXEL_SIZE: [0.05, 0.05, 0.1]
+            MAX_POINTS_PER_VOXEL: 5
+            MAX_NUMBER_OF_VOXELS: {
+                'train': 16000,
+                'val': 40000,
+                'test': 40000
+            }
 
 MODEL:
     NAME: PVRCNN
