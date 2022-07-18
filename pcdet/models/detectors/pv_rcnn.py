@@ -1,4 +1,5 @@
 from .detector3d_template import Detector3DTemplate
+import torch
 
 
 class PVRCNN(Detector3DTemplate):
