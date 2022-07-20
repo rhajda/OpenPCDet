@@ -283,8 +283,7 @@ class VoxelSetAbstraction(nn.Module):
     @staticmethod
     def aggregate_keypoint_features_from_one_source(
             batch_size, aggregate_func, xyz, xyz_features, xyz_bs_idxs, new_xyz, new_xyz_batch_cnt,
-            filter_neighbors_with_roi=False, radius_of_neighbor=None, num_max_points_of_part=200000, rois=None,
-            ignore_xyz_features=True
+            filter_neighbors_with_roi=False, radius_of_neighbor=None, num_max_points_of_part=200000, rois=None
     ):
         """
 
