@@ -1,10 +1,18 @@
 from .detector3d_template import Detector3DTemplate
+import torch
 
 
 class PVRCNNPlusPlus(Detector3DTemplate):
-    def __init__(self, model_cfg, num_class, dataset):
+    def __init__(self, model_cfg, num_class, dataset, tb_log=None):
         super().__init__(model_cfg=model_cfg, num_class=num_class, dataset=dataset)
         self.module_list = self.build_networks()
+        self.tb_log = tb_log
+        self.idx = 0
+        for module in self.module_list:
+            if hasattr(module, "eval_mode"):
+                module.eval_mode = self.eval_mode
+            if hasattr(module, "test"):
+                module.test = self.test
 
     def forward(self, batch_dict):
         batch_dict = self.vfe(batch_dict)
@@ -28,6 +36,11 @@ class PVRCNNPlusPlus(Detector3DTemplate):
         batch_dict = self.pfe(batch_dict)
         batch_dict = self.point_head(batch_dict)
         batch_dict = self.roi_head(batch_dict)
+
+        for key in batch_dict.keys():
+            if isinstance(batch_dict[key], torch.Tensor) and self.tb_log is not None:
+                self.tb_log.add_scalar(f'train/{key}', (batch_dict[key].cpu().detach().numpy().sum()), self.idx)
+        self.idx += 1
 
         if self.training:
             loss, tb_dict, disp_dict = self.get_training_loss()
