@@ -57,19 +57,19 @@ MODEL:
         WITH_DISTANCE: False
         USE_ABSLOTE_XYZ: True
         USE_NORM: True
-        NUM_FILTERS: [64]
+        NUM_FILTERS: [8]
 
     MAP_TO_BEV:
         NAME: PointPillarScatter
-        NUM_BEV_FEATURES: 64
+        NUM_BEV_FEATURES: 8
 
     BACKBONE_2D:
         NAME: BaseBEVBackbone
         LAYER_NUMS: [3, 5, 5]
         LAYER_STRIDES: [2, 2, 2]
-        NUM_FILTERS: [64, 128, 256]
+        NUM_FILTERS: [32, 64, 128]
         UPSAMPLE_STRIDES: [1, 2, 4]
-        NUM_UPSAMPLE_FILTERS: [128, 128, 128]
+        NUM_UPSAMPLE_FILTERS: [32, 32, 32]
 
     DENSE_HEAD:
         NAME: AnchorHeadSingle
@@ -84,8 +84,8 @@ MODEL:
             {
                 'class_name': 'Car',
                 'anchor_sizes': [[4.88, 1.9, 1.18]],
-                'anchor_rotations': [0, 1.57],
-                'anchor_bottom_heights': [-1.78],
+                'anchor_rotations': [0],
+                'anchor_bottom_heights': [0],
                 'align_center': False,
                 'feature_map_stride': 2,
                 'matched_threshold': 0.6,
@@ -125,7 +125,7 @@ MODEL:
 
 
 OPTIMIZATION:
-    BATCH_SIZE_PER_GPU: 2
+    BATCH_SIZE_PER_GPU: 4
     NUM_EPOCHS: 75
 
     OPTIMIZER: adam_onecycle
