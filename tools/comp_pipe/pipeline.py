@@ -3,6 +3,7 @@ Pipeline for comparing real vs simulated data.
 
 Currently written to be run on single GPU.
 '''
+from pickle import TRUE
 import time
 from path_handle import paths
 import argparse
@@ -19,16 +20,23 @@ from tabulate import tabulate
 import subprocess
 from tqdm import tqdm
 from logging import Logger
+import csv
+from scipy.spatial import ConvexHull
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 
 from tensorboardX import SummaryWriter
 
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
 from pcdet.models import build_network, model_fn_decorator
-from pcdet.utils import common_utils
+from pcdet.utils import common_utils, box_utils
 from tools.train_utils.optimization import build_optimizer, build_scheduler
 from tools.train_utils.train_utils import train_model
 from tools.test_utils.test_utils import repeat_eval_ckpt
+
+ZERO_ARRAY = np.zeros((1, 3))
 
 def log_git_data(logger: Logger) -> None:
     """_summary_
@@ -70,7 +78,7 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     args = parser.parse_args()
 
     # set data config
-    cfg_from_yaml_file(paths.cfg_indy_pointrcnn, cfg)
+    cfg_from_yaml_file(str(Path(args.cfg_file).absolute()), cfg)
 
     cfg.TAG = Path(args.cfg_file).stem
     cfg.EXP_GROUP_PATH = '/'.join(args.cfg_file.split('/')[1:-1])  # remove 'cfgs' and 'xxxx.yaml'
@@ -78,6 +86,8 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs, cfg)
 
+    assert [i for i in cfg.DATA_CONFIG.DATA_PROCESSOR if i['NAME'] == 'sample_points'] == [], \
+        'sample_points not allowed, as analisys should be done on the original pointcloud'
     return args, cfg
 
 def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:str = "real",
@@ -97,15 +107,19 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
     assert data_type == "real" or data_type == "simulated"
     if data_type == "real":
         tmp_data_path = cfg.DATA_CONFIG.DATA_PATH
-        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL # swap the path for loading the real data instead!
-
+        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL 
+    elif data_type == "simulated":
+        tmp_data_path = cfg.DATA_CONFIG.DATA_PATH
+        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_SIM
+    else:
+        assert False
+        
     if disable_cfg_aug:
         all_augmentation_names = [i.NAME for i in cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST]
         tmp_disable_aug = cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST
-        if tmp_disable_aug == all_augmentation_names:
-            print("WARNING: All data augmentation was removed for the current training!")
-        else:
+        if tmp_disable_aug != all_augmentation_names:
             cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = all_augmentation_names
+        print("WARNING: No data augmentation for the current data_set!")
 
     args.logger.info(f'**********************Setup datasets and training of {data_type} data:**********************')
     dataset = easydict.EasyDict()
@@ -132,10 +146,10 @@ def setup_datasets(args: argparse.Namespace, cfg:easydict.EasyDict, data_type:st
     )
 
     # restore the settings
-    if data_type == "real":
-        cfg.DATA_CONFIG.DATA_PATH = tmp_data_path
-    if disable_cfg_aug:
-        cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = tmp_disable_aug
+    # if data_type == "real":
+    #     cfg.DATA_CONFIG.DATA_PATH = tmp_data_path
+    # if disable_cfg_aug:
+    #     cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST = tmp_disable_aug
 
     return dataset
 
@@ -276,8 +290,8 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) ->
         ['ratio one_to_one:', f'{counter_real/ len_of_data_real* 100:.1f}%', f'{counter_sim/len_of_data_sim * 100:.1f}%']]
 
     args.logger.info("Check how many of the training samples from the given datasets contain gt_obj_boxes and \
-thus will be used for training with the current configuration.\n" + tabulate(table,
-        headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl'))
+thus will be used for training with the current configuration.\n\n" + tabulate(table,
+        headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'], tablefmt='orgtbl') + "\n")
 
     # CAN BE REMOVED: IT KEPT AS WHOLE
     # FOR VALIDATION SET:
@@ -298,18 +312,35 @@ def log_example_pointcloud_pairs(dataset_real, dataset_sim, args): # TODO
 
     summary = mesh_summary.op('mesh', vertices=mesh, colors=colors, faces=faces)
 
+def log_min_max_mean(args, title, header, train_real, train_sim, train_real_no_aug, train_sim_no_aug, to_csv=None):
+    headers = ['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug', "num_of_samples"]
+    stacked_values = [np.vstack(x) for x in [train_real, train_sim, train_real_no_aug, train_sim_no_aug]]
+    mean_values = [list(np.round(np.mean(x, axis=(0)), 4)) for x in stacked_values] + [len(train_real)]
+    min_values = [list(np.round(np.min(x, axis=(0)), 4)) for x in stacked_values] + [len(train_real)]
+    max_values = [list(np.round(np.max(x, axis=(0)), 4)) for x in stacked_values] + [len(train_real)]
+    args.logger.info(title + "\n" + tabulate(
+        [['mean'] + mean_values, 
+         ['min'] + min_values, 
+         ['max'] + max_values], headers=headers, tablefmt='orgtbl'))
+    if to_csv is not None:
+        target_csv = args.output_dir / to_csv
+        with target_csv.open('w') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            writer.writerow(mean_values)
+            writer.writerow(min_values)
+            writer.writerow(max_values)
 
-def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20):
+def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug=None, dataset_sim_no_aug=None, args=None, num=20):
     """
-
-    No guarantee of uniqueness of the data pairs (but likely for large datasets).
-
+    Compare the given datasets and log results. 
     :param dataset_real: _description_
     :param dataset_sim: _description_
     :param dataset_real_no_aug: _description_
     :param dataset_sim_no_aug: _description_
     :param args: _description_
     :param num: _description_, defaults to 20
+    Note: supports additional comparisons with augmented data, but this is not used for the indy dataset. 
     """
     args.logger.info('**********************Start comparison of data pairs**********************')
     # check for matching lengths
@@ -323,33 +354,178 @@ def analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_s
 
     # get some corresponding data pairs
     test_train_ratio = test_len / train_len
+    if 0.5 <= test_train_ratio: print('The train test ration seems off.')
     test_samples = 1 if int(num * test_train_ratio) == 0 else int(num * test_train_ratio)
-    if 0.5 <=test_train_ratio <= 0.9: print('The train test ration seems off.')
 
-    idxs_train = random.sample(range(0, train_len), k=num-test_samples)
-    idxs_test = random.sample(range(0, test_len), k=test_samples)
+    if num == -1: # use all samples # TODO: also check test_set?!
+        idxs_test = range(0, test_len-1)
+        idxs_train = range(0, train_len-1)
+    else:
+        idxs_train = random.sample(range(0, train_len), k=num-test_samples)
+        idxs_test = random.sample(range(0, test_len), k=test_samples)
 
     # Load augmented and non_augmented values:
     train_real, train_sim, train_real_no_aug, train_sim_no_aug = [], [], [], []
-    for i in tqdm(idxs_train):
-        # Only select training sample which contain gt boxes: (only these are used for training) -> if no gt boxes, use the new returned id
-        loaded_sample = dataset_real.train_set[i]
-        loaded_sample_idx = int(loaded_sample['frame_id']) // 5 # usually the same as i, but if no gt boxes, use the new returned id
-        train_real.append(loaded_sample['points'])
-        train_sim.append(dataset_sim.train_set[loaded_sample_idx]['points'])
-        train_real_no_aug.append(dataset_real_no_aug.train_set[loaded_sample_idx]['points'])
-        train_sim_no_aug.append(dataset_sim_no_aug.train_set[loaded_sample_idx]['points'])
+    for i in tqdm(idxs_train, desc="Load corresponding samples"):
+        loaded_sample_r = dataset_real.train_set[i]
+        loaded_sample_s = dataset_sim.train_set[i]
+        assert loaded_sample_r['frame_id'] == loaded_sample_s['frame_id'] 
+        # loaded_sample_idx = int(loaded_sample['frame_id']) // 5 # usually the same as i, but if no gt boxes, use the new returned id
+        train_real.append(loaded_sample_r['points'])
+        train_sim.append(loaded_sample_s['points'])
 
-    # mean, min, max
-    args.logger.info("Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!\n"+tabulate(
-        [
-            ['mean', np.mean(train_real, axis=(1, 0)), np.mean(train_sim, axis=(1, 0)), np.mean(train_real_no_aug, axis=(1, 0)), np.mean(train_sim_no_aug, axis=(1, 0))],
-            ['min', np.min(train_real, axis=(1, 0)), np.min(train_sim, axis=(1, 0)), np.min(train_real_no_aug, axis=(1, 0)), np.min(train_sim_no_aug, axis=(1, 0))],
-            ['max', np.max(train_real, axis=(1, 0)), np.max(train_sim, axis=(1, 0)), np.max(train_real_no_aug, axis=(1, 0)), np.max(train_sim_no_aug, axis=(1, 0))]
-        ],
-        headers=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'], tablefmt='orgtbl'))
+        if dataset_real_no_aug is not None:
+            assert train_sim_no_aug is not None
+            loaded_sample_r = dataset_real_no_aug.train_set[i]
+            loaded_sample_s = dataset_sim_no_aug.train_set[i]
+            assert loaded_sample_r['frame_id'] == loaded_sample_s['frame_id'] 
+        train_real_no_aug.append(loaded_sample_r['points'] if dataset_real_no_aug is not None else ZERO_ARRAY)
+        train_sim_no_aug.append(loaded_sample_s['points'] if dataset_sim_no_aug is not None else ZERO_ARRAY)
 
-    args.logger.info('**********************End comparison of data pairs**********************')
+    log_min_max_mean(args, 
+                     title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
+                     header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                     train_real=train_real, train_sim=train_sim, 
+                     train_real_no_aug=train_real_no_aug, train_sim_no_aug=train_sim_no_aug, 
+                     to_csv="obj_and_background_point_ranges.csv")
+
+    # Get infos multithreaded:
+    infos_real = dataset_real.train_set.get_infos(
+        sample_id_list=[dataset_real.train_set[i]['frame_id'] for i in idxs_train])
+    infos_sim = dataset_sim.train_set.get_infos(
+        sample_id_list=[dataset_sim.train_set[i]['frame_id'] for i in idxs_train])
+
+    gt_target_locations_real = []
+    gt_target_locations_sim = []
+    gt_target_rotation_real = []
+    gt_target_rotation_sim = []
+    gt_target_size_real = []
+    gt_target_size_sim = []
+    gt_target_num_points_original = []
+    gt_target_num_points_sampled = []
+    gt_target_point_cloud_sampled = []
+    gt_target_point_cloud_original = []
+
+    for i_r, i_s, i in tqdm(zip(infos_real, infos_sim, idxs_train)):
+        gt_target_locations_real.append(i_r['annos']['location'][0])
+        gt_target_locations_sim.append(i_s['annos']['location'][0])
+        
+        gt_target_rotation_real.append(i_r['annos']['rotation_y'])
+        gt_target_rotation_sim.append(i_s['annos']['rotation_y'])
+
+        gt_target_size_real.append(i_r['annos']['dimensions'])
+        gt_target_size_sim.append(i_s['annos']['dimensions'])
+        
+        loaded_sample_r = dataset_real.train_set[i]
+        loaded_sample_s = dataset_sim.train_set[i]
+        assert loaded_sample_r['frame_id'] == loaded_sample_s['frame_id']
+        current_idx = loaded_sample_r['frame_id']
+        points_loaded_r = loaded_sample_r['points']
+        points_loaded_s = loaded_sample_s['points']
+        points_original_r = dataset_real.train_set.get_lidar(current_idx)
+        points_original_s = dataset_sim.train_set.get_lidar(current_idx)
+        # convex hull of box
+        flag_r = box_utils.in_hull(points_loaded_r, box_utils.boxes_to_corners_3d(i_r['annos']['gt_boxes_lidar'])[0])
+        flag_s = box_utils.in_hull(points_loaded_s, box_utils.boxes_to_corners_3d(i_s['annos']['gt_boxes_lidar'])[0])
+        flag_r_orig = box_utils.in_hull(points_original_r, box_utils.boxes_to_corners_3d(i_r['annos']['gt_boxes_lidar'])[0])
+        flag_s_orig = box_utils.in_hull(points_original_s, box_utils.boxes_to_corners_3d(i_s['annos']['gt_boxes_lidar'])[0])
+
+        gt_target_num_points_sampled.append((flag_r.sum(), flag_s.sum()))
+        gt_target_num_points_original.append((i_r['annos']['num_points_in_gt'][0], i_s['annos']['num_points_in_gt'][0]))
+        
+        gt_target_point_cloud_sampled.append((points_original_r[flag_r_orig], points_original_s[flag_s_orig]))  
+        gt_target_point_cloud_original.append((points_original_r, points_original_s))  
+
+    # TODO: All values are here: do evaluation:
+    # Location coordinates of bbox (independent of sampling - currently our only aug):
+    log_min_max_mean(args, 
+                    title="Bounding Box locations",
+                    header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                    train_real=gt_target_locations_real, train_sim=gt_target_locations_sim, 
+                    train_real_no_aug=ZERO_ARRAY, train_sim_no_aug=ZERO_ARRAY, 
+                    to_csv="obj_location_ranges.csv")
+    # Plot:
+    # create data
+    x = np.random.normal(size=50000)
+    y = (x * 3 + np.random.normal(size=50000)) * 5
+    
+    # Make the plot
+    plt.hexbin(x, y, gridsize=(15,15) )
+    plt.show()
+    
+    # We can control the size of the bins:
+    plt.hexbin(x, y, gridsize=(150,150) )
+    plt.show()
+
+    # Distances between Bboxes (independent of sampling - currently our only aug):
+    distances_loc = np.linalg.norm(np.array(gt_target_locations_real) - np.array(gt_target_locations_sim), axis=1)
+    log_min_max_mean(args, 
+                title="L-2 distance between bounding box locations",
+                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                train_real=distances_loc, train_sim=distances_loc, 
+                train_real_no_aug=ZERO_ARRAY, train_sim_no_aug=ZERO_ARRAY, 
+                to_csv="obj_box_location_l2_distance.csv")
+
+    # Diff between Rotations (independent of sampling - currently our only aug):
+    distances_rot = np.abs(np.array(gt_target_rotation_real) - np.array(gt_target_rotation_sim))
+    log_min_max_mean(args, 
+                title="Absolute difference in rotation(heading angle)",
+                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                train_real=distances_rot, train_sim=distances_rot, 
+                train_real_no_aug=ZERO_ARRAY, train_sim_no_aug=ZERO_ARRAY, 
+                to_csv="obj_orientation_angle_ranges.csv")
+
+    # Target sizes # HARDCODED ANYWAY!:
+    # log_min_max_mean(args, 
+    #             title="Bounding Box sizes",
+    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+    #             train_real=gt_target_size_real, train_sim=gt_target_size_sim, 
+    #             train_real_no_aug=ZERO_ARRAY, train_sim_no_aug=ZERO_ARRAY, 
+    #             to_csv="obj_size.csv")
+    
+    # Number of points in the gt target bbox:
+    log_min_max_mean(args, 
+                title="Absolute difference in rotation(heading angle)",
+                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                train_real=list(zip(*gt_target_num_points_sampled))[0], 
+                train_sim=list(zip(*gt_target_num_points_sampled))[1], 
+                train_real_no_aug=list(zip(*gt_target_num_points_original))[0],
+                train_sim_no_aug=list(zip(*gt_target_num_points_original))[1], 
+                to_csv="obj_number_of_points_ranges.csv")
+
+    # IOU Convex hull: 
+    # from Geometry3D import ConvexPolyhedron, Point, ConvexPolygon
+    # import Geometry3D
+    # import open3d as o3d
+    # device = o3d.core.Device("CPU:0")
+
+    # for a, b in gt_target_point_cloud_sampled:#
+    #     a_ch = ConvexHull(a).volume
+    #     b_ch = ConvexHull(b).volume
+    #     c_ch = ConvexHull(np.concatenate((a, b), axis=0)).volume
+    #     print((c_ch - a_ch - b_ch) / c_ch)
+        # THROWS ERROR:
+        # pcd1 = o3d.geometry.PointCloud()
+        # pcd1.points = o3d.utility.Vector3dVector(a)
+        # hull1, _ = pcd1.compute_convex_hull()
+        
+        # pcd2 = o3d.geometry.PointCloud()
+        # pcd2.points = o3d.utility.Vector3dVector(b)
+        # hull2, _  = pcd2.compute_convex_hull()
+
+        # conv_polys1, conv_polys2 = [], []
+        # for tri in list(hull1.triangles):
+        #     conv_polys1.append(ConvexPolygon([Point(xyz) for xyz in a[tri]]))
+        # for tri in list(hull2.triangles):
+        #     conv_polys2.append(ConvexPolygon([Point(xyz) for xyz in b[tri]]))
+        # intersection_polyh = Geometry3D.intersection(ConvexPolyhedron(conv_polys1), ConvexPolyhedron(conv_polys2))
+        # intersection_vol = 0
+        # if intersection_polyh is not None:
+        #     intersection_hull_points = [(p.x, p.y, p.z) for p in list(intersection_polyh.point_set)]
+        #     intersection_vol = ConvexHull(intersection_hull_points).volume
+        # print(intersection_vol)
+
+    args.logger.info('********************** End comparison of data pairs **********************')
 
 def main():
     os.chdir(paths.tools) # directory change makes life easier with path handling later on
@@ -384,30 +560,24 @@ def main():
     log_config_to_file(cfg, logger=args.logger)
     os.system('cp %s %s' % (args.cfg_file, args.output_dir))
 
-    # ######### DATASET ANALYSIS: ##########
-    analysis = False
-    if analysis:
-
-        # no augmentation:
-        dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=True, shuffle=False)
-        dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=True, shuffle=False)
-
-        # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-        analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=20)
-
     # ######### LOAD DATA FOR TRAINING: ##########
     dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, remove_missing_gt=True)
     dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, remove_missing_gt=True)
 
     make_matching_datasets(dataset_real, dataset_sim, args)
-
-
-    # ######### PERFORM TRAINING: ##########
-    # train on real
-    execute_training(args, cfg, dataset_real, evaluate=False)
-    # train on simulated:
-    # execute_training(args, cfg, dataset_sim)
-
+    
+    # ######### DATASET ANALYSIS: ########## TODO:fix aug vs no aug setting!- CAN PROBABLY BE REMOVED
+    dataset_sim_no_aug = None
+    dataset_real_no_aug = None
+    # no augmentation:
+    all_augmentation_names = [i.NAME for i in cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST]
+    if cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST != all_augmentation_names:
+        dataset_sim_no_aug = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=False, shuffle=False)
+        dataset_real_no_aug = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=False, shuffle=False)
+        make_matching_datasets(dataset_real_no_aug, dataset_sim_no_aug, args)
+    
+    # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
+    analyze_data_pairs(dataset_real, dataset_sim, dataset_real_no_aug, dataset_sim_no_aug, args, num=40)
 
 if __name__ == "__main__":
     main()

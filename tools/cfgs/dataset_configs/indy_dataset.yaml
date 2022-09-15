@@ -1,6 +1,9 @@
 DATASET: 'IndyDataset'
 DATA_PATH: '../data/indy'
 
+DATA_PATH_REAL: '../full_mount/real'
+DATA_PATH_SIM: '../full_mount/sim_no_noise'
+
 POINT_CLOUD_RANGE: [-100, -100, -0.5, 100, 100, 9.5]
 
 DATA_SPLIT: {
