@@ -15,7 +15,7 @@ except:
     
 from pcdet.config import cfg, cfg_from_yaml_file
 from pcdet.datasets import DatasetTemplate
-from tools.comp_pipe.path_handle import paths
+from tools.comp_pipe.analyzable_dataset import paths
 
 from tools.comp_pipe.pipeline import parse_config
 
