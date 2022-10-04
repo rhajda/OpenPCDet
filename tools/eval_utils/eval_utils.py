@@ -60,10 +60,12 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
     start_time = time.time()
     val_loss_list = list()
+    glob_feats = []
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
-            pred_dicts, ret_dict = model(batch_dict)
+            pred_dicts, ret_dict, feat = model(batch_dict)
+            glob_feats.append(feat)
             if get_val_loss:
                 loss, tb_dict, disp_dict = model.get_training_loss()
                 val_loss_list.append([loss, tb_dict, disp_dict])
@@ -78,6 +80,9 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         if cfg.LOCAL_RANK == 0:
             progress_bar.set_postfix(disp_dict)
             progress_bar.update()
+
+    with open(result_dir / f'glob_feat_{str(epoch_id).zfill(2)}.pkl', "wb") as file:
+        pickle.dump(glob_feats, file)
 
     if cfg.LOCAL_RANK == 0:
         progress_bar.close()
