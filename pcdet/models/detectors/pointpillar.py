@@ -1,5 +1,6 @@
 from .detector3d_template import Detector3DTemplate
 import torch
+import numpy as np
 
 
 class PointPillar(Detector3DTemplate):
@@ -15,8 +16,11 @@ class PointPillar(Detector3DTemplate):
                 module.test = self.test
 
     def forward(self, batch_dict):
-        for cur_module in self.module_list:
+        for idx, cur_module in enumerate(self.module_list):
             batch_dict = cur_module(batch_dict)
+            if idx == 3:
+                feat = batch_dict["spatial_features_2d"].cpu().detach().numpy()
+                feat = np.amax(np.amax(feat, axis=-1), axis=-1)
 
         for key in batch_dict.keys():
             if isinstance(batch_dict[key], torch.Tensor) and self.tb_log is not None:
@@ -32,7 +36,7 @@ class PointPillar(Detector3DTemplate):
             return ret_dict, tb_dict, disp_dict
         else:
             pred_dicts, recall_dicts = self.post_processing(batch_dict)
-            return pred_dicts, recall_dicts
+            return pred_dicts, recall_dicts, feat
 
     def get_training_loss(self):
         disp_dict = {}
