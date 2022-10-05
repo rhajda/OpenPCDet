@@ -1,5 +1,5 @@
 import pathlib
-from tools.comp_pipe.path_handle import paths
+from tools.comp_pipe.analyzable_dataset import paths
 from tqdm import tqdm
 import pickle
 

@@ -4,7 +4,7 @@ Helper class to comfortly run a training wiht openpcdet.
 import sys
 import os
 from pcdet.datasets.indy.kitti_object_eval_python.evaluate import evaluate
-from comp_pipe.path_handle  import paths
+from tools.comp_pipe.analyzable_dataset  import paths
 import pcdet.datasets.indy.kitti_object_eval_python.kitti_common as kitti
 from pcdet.datasets.indy.kitti_object_eval_python.eval import get_official_eval_result, get_coco_eval_result
 
