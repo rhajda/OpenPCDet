@@ -5,6 +5,13 @@ import csv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rc
+import statsmodels.api as sm
+from matplotlib.text import Text
+
+plt.rcParams["font.size"] = "16"
+rc('axes', linewidth=2)
+rc('font', weight='bold', family='serif')
 plt.show()
 
 
@@ -39,7 +46,11 @@ def merge_runs(result_dict, testing_datasets):
     for metric_idx, metric in enumerate(metrics):
         fig, ax = plt.subplots(4, 1)
         fig.suptitle(metric)
-        facecolor = {0: "red", 1: "blue", 2: "yellow", 3: "green"}
+
+        fig2, ax2 = plt.subplots(1, 1)
+        fig2.suptitle(metric)
+
+        facecolor = {0: "red", 1: "blue", 2: "dodgerblue", 3: "deepskyblue"}
         positions = {0: -0.3, 1: -0.1, 2: 0.1, 3: 0.3}
 
         means_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_means.csv")
@@ -54,6 +65,7 @@ def merge_runs(result_dict, testing_datasets):
 
         for testing_idx, testing_dataset in enumerate(testing_datasets):
             boxplot_list = []
+            beanplot_single_list = []
             for training_idx, training_dataset in enumerate(testing_datasets):
                 result_dict_similar_runs = {k: v for k, v in result_dict.items() if
                                             f"{testing_dataset}_{training_dataset}" in k}
@@ -66,7 +78,7 @@ def merge_runs(result_dict, testing_datasets):
                 means[metric_idx, testing_idx, training_idx] = np.mean(metric_data_df.values)
                 stds[metric_idx, testing_idx, training_idx] = np.std(metric_data_df.values)
 
-                boxprops = dict(linestyle='--', linewidth=1, color=facecolor[training_idx])
+                boxprops = dict(linestyle='--', linewidth=2, color=facecolor[training_idx])
                 boxplot_list.append(ax[testing_idx].boxplot(metric_data_df,
                                                             labels=metric_data_df.columns,
                                                             boxprops=boxprops,
@@ -74,6 +86,17 @@ def merge_runs(result_dict, testing_datasets):
                                                                       positions[training_idx],
                                                             widths=0.1,
                                                             showmeans=True))
+
+                plot_opts = dict(violin_width=0.1, bean_show_median=False, bean_color='black', jitter_fc='black',
+                                 bean_mean_color='black', bean_mean_size=0.15,
+                                 violin_fc=facecolor[training_idx])
+                beanplot_single_list.append(sm.graphics.beanplot(data=np.swapaxes(metric_data_df.values, 0, 1), ax=ax2,
+                                                                 labels=[
+                                                                     ["Real", "Sim", "Sim Noise", "Sim downsampled"][
+                                                                         training_idx]],
+                                                                 plot_opts=plot_opts,
+                                                                 positions=[1 + testing_idx + positions[training_idx]],
+                                                                 jitter=True))
             ticks = metric_data_df.columns
             ax[testing_idx].set_title(f"Testing dataset: {testing_dataset}")
             ax[testing_idx].set_xticks(ticks)
@@ -88,18 +111,42 @@ def merge_runs(result_dict, testing_datasets):
                 csv_writer = csv.writer(csv_file)
                 csv_writer.writerow(stds[metric_idx, testing_idx, :])
 
+        # plot boxplots in single plot for each of the 11 metrics [4(training)*4(testing) boxes per plot]
+        font = {'family': 'serif',
+                'color': 'black',
+                'weight': 'bold',
+                'size': 16,
+                }
+
+        tick_labels = ["Real", "Sim", "Sim Noise", "Sim downsampled"]
+        ticks = list(range(1, 5))
+        ax2.set_xticks(ticks, labels=tick_labels)
+        for ticklabel, tickcolor in zip(plt.gca().get_xticklabels(), facecolor.values()):
+            ticklabel.set_color(tickcolor)
+
+        # ax2.legend([boxplot["boxes"][0] for boxplot in beanplot_single_list], tick_labela,
+        #                       title="Training dataset")
+        ax2.legend(ax2.collections[::2], tick_labels, title="Training dataset", loc="lower right")
+        ax2.set_ylim([0, y_scales[metric[:6]]])
+        ax2.set_xlabel("Testing dataset", labelpad=20, fontdict=font)
+        ax2.set_ylabel("mAP in %", fontdict=font)
+        ax2.grid(axis='y')
+        ax2.set_xlim([0.5, 4.5])
+        [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
+    plt.show()
+
     relevant_means = means[list(relevant_metrics.values())]
     relevant_stds = stds[list(relevant_metrics.values())]
     with open(full_csv, "a") as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=",")
         for training_idx, training_dataset in enumerate(testing_datasets):
             for testing_idx, testing_dataset in enumerate(testing_datasets):
-                #csv_writer.writerow(",".join([f"{round(el[0], 2)} ({round(el[1], 2)})" for el in
+                # csv_writer.writerow(",".join([f"{round(el[0], 2)} ({round(el[1], 2)})" for el in
                 #                              zip(relevant_means[:, testing_idx, training_idx],
                 #                                  relevant_stds[:, testing_idx, training_idx])]))
                 csv_writer.writerow([f"{round(el[0], 2)} ({round(el[1], 2)})" for el in
-                                              zip(relevant_means[:, testing_idx, training_idx],
-                                                  relevant_stds[:, testing_idx, training_idx])])
+                                     zip(relevant_means[:, testing_idx, training_idx],
+                                         relevant_stds[:, testing_idx, training_idx])])
     plt.show()
     print()
 
