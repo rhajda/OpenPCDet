@@ -11,6 +11,8 @@ RUN git config --global --add safe.directory /home
 
 RUN python setup.py develop
 
+RUN chmod +x /home/tools/eval_loop.sh
+
 ENV PYTHONPATH=/home
 ENV XAUTHORITY=/home/.Xauthority
 ENV CUBLAS_WORKSPACE_CONFIG=:4096:8
