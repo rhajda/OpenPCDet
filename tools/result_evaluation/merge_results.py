@@ -90,13 +90,14 @@ def merge_runs(result_dict, testing_datasets):
                 plot_opts = dict(violin_width=0.1, bean_show_median=False, bean_color='black', jitter_fc='black',
                                  bean_mean_color='black', bean_mean_size=0.15,
                                  violin_fc=facecolor[training_idx])
-                beanplot_single_list.append(sm.graphics.beanplot(data=np.swapaxes(metric_data_df.values, 0, 1), ax=ax2,
-                                                                 labels=[
-                                                                     ["Real", "Sim", "Sim Noise", "Sim downsampled"][
-                                                                         training_idx]],
-                                                                 plot_opts=plot_opts,
-                                                                 positions=[1 + testing_idx + positions[training_idx]],
-                                                                 jitter=True))
+                if sys.argv[1].split('/')[-1] == "pointrcnn":
+                    beanplot_single_list.append(sm.graphics.beanplot(data=np.swapaxes(metric_data_df.values, 0, 1), ax=ax2,
+                                                                     labels=[
+                                                                         ["Real", "Sim", "Sim Noise", "Sim downsampled"][
+                                                                             training_idx]],
+                                                                     plot_opts=plot_opts,
+                                                                     positions=[1 + testing_idx + positions[training_idx]],
+                                                                     jitter=True))
             ticks = metric_data_df.columns
             ax[testing_idx].set_title(f"Testing dataset: {testing_dataset}")
             ax[testing_idx].set_xticks(ticks)
@@ -133,7 +134,6 @@ def merge_runs(result_dict, testing_datasets):
         ax2.grid(axis='y')
         ax2.set_xlim([0.5, 4.5])
         [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
-    plt.show()
 
     relevant_means = means[list(relevant_metrics.values())]
     relevant_stds = stds[list(relevant_metrics.values())]
