@@ -1,6 +1,5 @@
 '''
 Pipeline for comparing real vs simulated data.
-
 Currently written to be run on single GPU.
 '''
 import time
@@ -25,15 +24,9 @@ import numpy as np
 import math
 import seaborn as sns
 
-from tensorboardX import SummaryWriter
-
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
-from pcdet.models import build_network, model_fn_decorator
-from pcdet.utils import common_utils, box_utils
-from tools.train_utils.optimization import build_optimizer, build_scheduler
-from tools.train_utils.train_utils import train_model
-from tools.test_utils.test_utils import repeat_eval_ckpt
+from pcdet.utils import common_utils
 from tools.comp_pipe.analyzable_dataset import AnalyzableDataset
 
 ZERO_ARRAY = np.zeros((1, 3))
@@ -57,7 +50,7 @@ def rotation_matrix(axis, theta):
 def rotate_pointcloud_y(point_cloud, y_axis_angle):
     rotation_correction = rotation_matrix(axis=[0, 1, 0], theta=y_axis_angle)
     return point_cloud @ rotation_correction.T
-    
+
 def log_git_data(logger: Logger) -> None:
     commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
     git_branch =  subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('ascii').strip()
@@ -67,7 +60,7 @@ def log_git_data(logger: Logger) -> None:
 def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
     parser = argparse.ArgumentParser(description='arg parser')
 
-    parser.add_argument('--cfg_file', type=str, default=None, 
+    parser.add_argument('--cfg_file', type=str, default=None,
                         help='specify the config used for training e.g. cfgs/indy_models/pointrcnn.yaml' + \
                         '-> used to load data with specified augmentation')
     parser.add_argument('--extra_tag', type=str, default='default', help='extra tag for this experiment')
@@ -96,7 +89,7 @@ def setup_datasets(args: argparse.Namespace, cfg: easydict.EasyDict, data_type:s
     """_summary_
     :param args: _description_
     :param cfg: _description_
-    :param data_type: can be "simulated" or "real" and defines which set to load. 
+    :param data_type: can be "simulated" or "real" and defines which set to load.
     :param disable_cfg_aug: _description_, defaults to False
     :param shuffle: _description_, defaults to True
     :param training: Defines if the train_set will be used for training,
@@ -105,12 +98,12 @@ def setup_datasets(args: argparse.Namespace, cfg: easydict.EasyDict, data_type:s
     :return: _description_
     """
     if data_type == "real":
-        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL 
+        cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_REAL
     elif data_type == "simulated":
         cfg.DATA_CONFIG.DATA_PATH = cfg.DATA_CONFIG.DATA_PATH_SIM
     else:
         assert False
-        
+
     if disable_cfg_aug:
         all_augmentation_names = [i.NAME for i in cfg.DATA_CONFIG.DATA_AUGMENTOR.AUG_CONFIG_LIST]
         tmp_disable_aug = cfg.DATA_CONFIG.DATA_AUGMENTOR.DISABLE_AUG_LIST
@@ -133,103 +126,10 @@ def setup_datasets(args: argparse.Namespace, cfg: easydict.EasyDict, data_type:s
         shuffle=shuffle,
         remove_missing_gt = remove_missing_gt
     )
-    dataset.test_set, dataset.test_loader, dataset.sampler = build_dataloader(
-        dataset_cfg=cfg.DATA_CONFIG,
-        class_names=cfg.CLASS_NAMES,
-        batch_size=32,
-        dist=False, workers=args.workers, logger=args.logger, training=False,
-        shuffle=shuffle,
-        remove_missing_gt = False # not necessary
-    )
-    
     return dataset
-
-def execute_training(args: argparse.Namespace, cfg:easydict.EasyDict, dataset:easydict.EasyDict, evaluate=True) -> None:
-    """_summary_
-
-    :param args: _description_
-    :param cfg: _description_
-    """
-    # setup model
-    model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=dataset.train_set, epoch_eval=True)
-    model.cuda()
-    optimizer = build_optimizer(model, cfg.OPTIMIZATION)
-
-    # load checkpoint if it is possible
-    start_epoch = it = 0
-    last_epoch = -1
-    if args.pretrained_model is not None:
-        model.load_params_from_file(filename=args.pretrained_model, to_cpu=False, logger=args.logger)
-
-    if args.ckpt is not None:
-        it, start_epoch = model.load_params_with_optimizer(args.ckpt, to_cpu=False, optimizer=optimizer, logger=args.logger)
-        last_epoch = start_epoch + 1
-    else:
-        ckpt_list = glob.glob(str(args.ckpt_dir / '*checkpoint_epoch_*.pth'))
-        if len(ckpt_list) > 0:
-            ckpt_list.sort(key=os.path.getmtime)
-            it, start_epoch = model.load_params_with_optimizer(
-                ckpt_list[-1], to_cpu=False, optimizer=optimizer, logger=args.logger
-            )
-            last_epoch = start_epoch + 1
-
-
-    args.logger.info(model)
-
-    lr_scheduler, lr_warmup_scheduler = build_scheduler(
-        optimizer, total_iters_each_epoch=len(dataset.train_loader), total_epochs=args.epochs,
-        last_epoch=last_epoch, optim_cfg=cfg.OPTIMIZATION
-    )
-    args.logger.info('**********************Start training %s/%s(%s)**********************'
-                % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-
-    # tensorboard logging:
-    tb_log = SummaryWriter(log_dir=str(args.output_dir / 'tensorboard'))
-
-    model.train()
-    train_model(
-        model,
-        optimizer,
-        dataset.train_loader,
-        model_func=model_fn_decorator(),
-        lr_scheduler=lr_scheduler,
-        optim_cfg=cfg.OPTIMIZATION,
-        start_epoch=start_epoch,
-        total_epochs=args.epochs,
-        start_iter=it,
-        rank=cfg.LOCAL_RANK,
-        tb_log=tb_log,
-        ckpt_save_dir=args.ckpt_dir,
-        train_sampler=dataset.train_sampler,
-        lr_warmup_scheduler=lr_warmup_scheduler,
-        ckpt_save_interval=args.ckpt_save_interval,
-        max_ckpt_save_num=args.max_ckpt_save_num,
-        merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        cfg=cfg,
-        test_loader=dataset.test_loader,
-        logger=args.logger,
-        eval_output_dir=args.eval_output_dir
-    )
-    if hasattr(dataset.train_set, 'use_shared_memory') and dataset.train_set.use_shared_memory:
-        dataset.train_set.clean_shared_memory()
-
-    args.logger.info('**********************End training %s/%s(%s)**********************\n\n\n'
-                % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-
-    if evaluate:
-        args.logger.info('**********************Start evaluation %s/%s(%s)**********************' %
-                    (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
-
-        args.start_epoch = max(args.epochs - args.num_epochs_to_eval, 0)  # Only evaluate the last args.num_epochs_to_eval epochs
-
-        repeat_eval_ckpt(model, dataset.test_loader, args, args.eval_output_dir,
-                        args.logger, args.ckpt_dir, cfg=cfg, dist_test=False)
-        args.logger.info('**********************End evaluation %s/%s(%s)**********************' %
-                    (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 
 def make_matching_datasets(dataset_real: dict, dataset_sim: dict, args: dict) -> None:
     """Make the passed datasets matching each other one-to-one.
-
     :param dataset_real: _description_
     :param dataset_sim: _description_
     :param args: _description_
@@ -310,129 +210,208 @@ def log_min_max_mean(args, title, header, train_real, train_sim, to_csv=None):
 
 def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     """
-    Compare the given datasets and log results. 
+    Compare the given datasets and log results.
     :param dataset_real: _description_
     :param dataset_sim: _description_
     :param dataset_real_no_aug: _description_
     :param dataset_sim_no_aug: _description_
     :param args: _description_
     :param num: _description_, defaults to 20
-    Note: supports additional comparisons with augmented data, but this is not used for the indy dataset. 
+    Note: supports additional comparisons with augmented data, but this is not used for the indy dataset.
     """
     args.logger.info('**********************Start comparison of data pairs**********************')
     # check for matching lengths
     train_len = len(dataset_real.train_set)
-    test_len = len(dataset_real.test_set)
     assert train_len == len(dataset_sim.train_set), \
         'The number of train data pairs in real and simulated dataset should be the same'
-    assert test_len == len(dataset_sim.test_set), \
-        'The number of test data pairs in real and simulated dataset should be the same'
 
-
-    # get some corresponding data pairs
-    test_train_ratio = test_len / train_len
-    if 0.5 <= test_train_ratio: print('The train test ration seems off.')
-    test_samples = 1 if int(num * test_train_ratio) == 0 else int(num * test_train_ratio)
-
-    if num == -1: # use all samples # TODO: also check test_set?!
-        idxs_test = range(0, test_len-1)
+    if num == -1: # use all samples
         idxs_train = range(0, train_len-1)
     else:
-        idxs_train = random.sample(range(0, train_len), k=num-test_samples)
-        idxs_test = random.sample(range(0, test_len), k=test_samples)
+        idxs_train = random.sample(range(0, train_len), k=num)
 
     dataset_real_analyze = AnalyzableDataset(dataset_real)
     dataset_real_analyze.set_indices_train(idxs_train)
     dataset_sim_analyze = AnalyzableDataset(dataset_sim)
     dataset_sim_analyze.set_indices_train(idxs_train)
 
-    log_min_max_mean(args, 
+    log_min_max_mean(args,
                      title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
                      header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                     train_real=dataset_real_analyze.get_point_clouds(), 
+                     train_real=dataset_real_analyze.get_point_clouds(),
                      train_sim=dataset_sim_analyze.get_point_clouds(), to_csv="obj_and_background_point_ranges.csv")
 
     # Location coordinates of all points in bbox: # TODO
 
     real_box_locations = dataset_real_analyze.get_box_locations()
     sim_box_locations = dataset_sim_analyze.get_box_locations()
-    
+    real_target_pointclouds = dataset_real_analyze.get_normalized_target()
+    sim_target_pointclouds = dataset_sim_analyze.get_normalized_target()
     # Locations of Bboxes: ALSO: SEE PLOT FOR THIS!
-    log_min_max_mean(args, 
+    log_min_max_mean(args,
                     title="Bounding Box locations",
                     header=['Attribute', 'real', 'simulated'],
                     train_real=real_box_locations, train_sim=sim_box_locations, to_csv="obj_location_ranges.csv")
-
     # Distances between Bboxes:
     distances_loc = np.linalg.norm(np.array(real_box_locations) - np.array(sim_box_locations), axis=1)
-    log_min_max_mean(args, 
+    log_min_max_mean(args,
                 title="L-2 distance between bounding box locations",
                 header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=distances_loc, train_sim=distances_loc, 
+                train_real=distances_loc, train_sim=distances_loc,
                 to_csv="obj_box_location_l2_distance.csv")
-
-    # Rotation of Bboxes: 
-    log_min_max_mean(args, 
+    # Rotation of Bboxes:
+    log_min_max_mean(args,
                 title="Absolute difference in rotation(heading angle)",
                 header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=dataset_real_analyze.get_box_rotation(), 
+                train_real=dataset_real_analyze.get_box_rotation(),
                 train_sim=dataset_sim_analyze.get_box_rotation(), to_csv="obj_orientation_angle_ranges.csv")
-    
     # Diff. between rotations:
     distances_rot = np.abs(np.array(
         dataset_real_analyze.get_box_rotation()) - np.array(dataset_sim_analyze.get_box_rotation()))
-    log_min_max_mean(args, 
+    log_min_max_mean(args,
                 title="Absolute difference in rotation(heading angle)",
                 header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=distances_rot, train_sim=distances_rot, 
+                train_real=distances_rot, train_sim=distances_rot,
                 to_csv="obj_orientation_angle_ranges.csv")
-
-    real_target_pointclouds = dataset_real_analyze.get_normalized_target()
-    sim_target_pointclouds = dataset_sim_analyze.get_normalized_target()
-    
-    log_min_max_mean(args, 
+    log_min_max_mean(args,
                     title="Number of target points",
                     header=['Attribute', 'real', 'simulated'],
-                    train_real=real_target_pointclouds['target_point_num'], 
+                    train_real=real_target_pointclouds['target_point_num'],
                     train_sim=sim_target_pointclouds['target_point_num'], to_csv="target_num_points_ranges.csv")
-    
 
-    point_cloud_range = [int(x/4) for x in cfg.DATA_CONFIG["POINT_CLOUD_RANGE"]]
+    # PLOTS:
     sns.set_theme(style="ticks")
-    # Plot 1: Data distributions!
-    # REAL:
-    x = np.array(real_box_locations)[:, 0]
-    y = np.array(real_box_locations)[:, 1]
-    plot = sns.jointplot(x=x, y=y, color="#4CB391")
-    plot.fig.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations_sns.png', bbox_inches='tight')
-    plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
-    plt.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations.png', bbox_inches='tight')
-    # SIMULATED:
-    x = np.array(sim_box_locations)[:, 0]
-    y = np.array(sim_box_locations)[:, 1]
-    plot = sns.jointplot(x=x, y=y, color="#4CB391")
-    plot.fig.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations_sns.png', bbox_inches='tight')
-    plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
-    plt.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations.png', bbox_inches='tight', dpi=300)
+    # WITH BUCKETS:
+    # sort all point clouds into  buckets:
+    import time
+    t0 = time.time()
+    real_box_dist = [np.linalg.norm(x) for x in real_box_locations]
+    real_sorted = sorted(zip(real_box_dist, real_target_pointclouds['normalized_target']), key=lambda x: x[0])
+    sim_box_dist = [np.linalg.norm(x) for x in sim_box_locations]
+    sim_sorted = sorted(zip(sim_box_dist, sim_target_pointclouds['normalized_target']), key=lambda x: x[0])
+    thresholds = list(np.arange(0, 100, 33.33)) + [100]
+    bins_real = sort_based_on_thres(thresholds, real_sorted)
+    bins_sim = sort_based_on_thres(thresholds, sim_sorted)
+    print(time.time() - t0)
+
+    # 2D HISTOGRAM PLOTS GENERAL DATA:
+    # import pandas as pd
+    # df_normal_a = pd.DataFrame(data = [sum([cur_bin.shape[0] for cur_bin in bins]) for bins in bins_sim],
+    #                            columns=['average number of points'])
+    # df_normal_b = pd.DataFrame(data = [xx + 5 for xx in thresholds[:-1]],
+    #                            columns=['meter']).assign(group = 'Group B')
+    # score_data = pd.concat([df_normal_a, df_normal_b])
+    # point_sum_per_bin = [(i*5, sum([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
+    # point_avg_per_bin = [(i*5, np.mean([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
+    # bins_points = []
+    # data = pd.DataFrame(data = point_sum_per_bin)
+    # fig = sns.histplot(data=data).get_figure()
+    # fig.axes[0].set_xlabel('total num of points w.r.t. range')
+    # fig.savefig("hist_of_total_point_num.png", bbox_inches='tight')
+    # fig = sns.histplot(data=point_avg_per_bin).get_figure()
+    # fig.axes[0].set_xlabel('average number of points w.r.t. range')
+    # fig.savefig("hist_of_avg_point_num.png", bbox_inches='tight')
+
+    # 2D HISTOGRAM PLOTS CAR:
+    # color closer points differently based distance => use varaible c for the removed dim
+    # See: https://stackoverflow.com/questions/20105364/how-can-i-make-a-scatter-plot-colored-by-density-in-matplotlib
+    scatter_sideplot = False
+    if scatter_sideplot:
+        for i in [0, 0.1, 1, 2]:
+            point_clouds = np.concatenate(bins_real[0])
+            side_plot(args, point_clouds, dim_to_skip=i, reverse=(i==0.1))
+    print()
+
+    # point_cloud_range = [int(x/4) for x in cfg.DATA_CONFIG["POINT_CLOUD_RANGE"]]
+    # # Plot 1: DATA DISTRIBUTIONS!
+    # # REAL:
+    # x = np.array(real_box_locations)[:, 0]
+    # y = np.array(real_box_locations)[:, 1]
+    # plot = sns.jointplot(x=x, y=y, color="#4CB391")
+    # plot.fig.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations_sns.png', bbox_inches='tight')
+    # plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
+    # plt.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations.png', bbox_inches='tight')
+    # # SIMULATED:
+    # x = np.array(sim_box_locations)[:, 0]
+    # y = np.array(sim_box_locations)[:, 1]
+    # plot = sns.jointplot(x=x, y=y, color="#4CB391")
+    # plot.fig.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations_sns.png', bbox_inches='tight')
+    # plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
+    # plt.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations.png', bbox_inches='tight', dpi=300)
 
 
-    # Plot 2:   
-    # REAL:
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(projection='3d')
-    ax.set_xlabel('meter')
-    points_blue = np.concatenate(real_target_pointclouds['normalized_target'], axis=0)
-    ax.scatter(points_blue[:,0], points_blue[:,1], points_blue[:,2])
-    plt.savefig(args.output_dir / 'car_plot_real_normalized.png', bbox_inches='tight', dpi=300)
-    # SIMULATED:
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(projection='3d')
-    ax.set_xlabel('meter')
-    points_red_not_rotated = np.concatenate(sim_target_pointclouds['normalized_target'], axis=0)
-    ax.scatter(points_red_not_rotated[:,0], points_red_not_rotated[:,1], points_red_not_rotated[:,2], c="red")
-    plt.savefig(args.output_dir / 'car_plot_sim_normalized.png', bbox_inches='tight', dpi=300)
+    # Plot 2: HOW CARS LOOK TO THE NETWORK:
+    # for alpha in [0.001, 0.002, 0.005, 0.001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
+    #     # REAL:
+    #     for b, th in zip(bins_real, thresholds[1:]):
+    #         name = f'car_plot_real_normalized_to_{int(th)}_alpha{str(alpha).replace(".", "")}.png'
+    #         make_plot(args, b, name, alpha, num_points=-1)
+    #     # SIMULATED:
+    #     for b, th in zip(bins_sim, thresholds[1:]):
+    #         name = f'car_plot_sim_normalized_to_{int(th)}_alpha{str(alpha).replace(".", "")}.png'
+    #         make_plot(args, b, name, alpha, num_points=-1)
+    # for num_points, alpha in zip([40, 80, 100, 200, 300],[0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]):
+    #     # REAL:
+    #     for i, (b, th) in enumerate(zip(bins_real, thresholds[1:])):
+    #         name = help_i(th, num_points, alpha, typ="real")
+    #         make_plot(args, b, name, alpha, num_points)
+    #     # SIMULATED:
+    #     for i, (b, th) in enumerate(zip(bins_sim, thresholds[1:])):
+    #         name = help_i(th, num_points, alpha, typ="sim")
+    #         make_plot(args, b, name, alpha, num_points)
 
     args.logger.info('********************** End comparison of data pairs **********************')
+
+def side_plot(args, point_clouds, dim_to_skip, car_size = np.array([4.88, 1.9, 1.18]), reverse=True):
+    """
+    :param args:
+    :param point_clouds:
+    :param dim_to_skip:
+    :param car_size: (length, width, height), defaults to np.array([4.88, 1.9, 1.18])
+    """
+    dims_to_take = [0, 1, 2]
+    dims_to_take.remove((0 if dim_to_skip == 0.1 else dim_to_skip))
+    dim_to_skip = int(dim_to_skip)
+    point_clouds = point_clouds[point_clouds[:, dim_to_skip].argsort()[::-1]] if reverse else point_clouds[point_clouds[:, dim_to_skip].argsort()]
+    points = point_clouds[:, dims_to_take[0]], point_clouds[:, dims_to_take[1]]
+    car_size = car_size.astype(np.int32)
+    fig_size = 9, int(12 * (car_size[dims_to_take[1]] / car_size[dims_to_take[0]]))
+    fig = plt.figure(figsize=fig_size)
+    ax = fig.add_subplot()
+    ax.set_xlabel('meter')
+    norm_c = (point_clouds[:, dim_to_skip] - point_clouds[:, dim_to_skip].min())
+    norm_c = norm_c / norm_c.max()
+    norm_c = norm_c[::-1] if not reverse else norm_c
+    s = 12 if dim_to_skip == 0 else 6
+    alpha = (norm_c[::-1] + 0.1) * 0.3 if dim_to_skip == 0 else 0.3
+    ax.scatter(*points, c=norm_c, alpha=alpha, s=s) # c=1 : black=Front , c=0 : white
+    plt.savefig(args.output_dir / f"car_angle_plot_real_skipdim{dim_to_skip}_{point_clouds.shape[0]}points_{'R'*reverse}.png", dpi=300)
+
+def help_i(th, num_points, alpha, typ):
+    # to 33 use 40 pointclouds -> to 66 use 80 -> to 100 use 160
+    name = f'car_plot_{typ}_normalized_{int(th-33)}_to_{int(th)}_alpha{str(alpha).replace(".", "")}_points_{num_points}.png'
+    return name
+
+def make_plot(args, b, name, alpha, num_points):
+    points_all = np.concatenate(b[:num_points], axis=0) if num_points != -1 else np.concatenate(b, axis=0)
+    plot_pointcloud_stacked(points_all, alpha, name, args)
+
+def plot_pointcloud_stacked(point_clouds, alpha, name, args):
+    points = point_clouds[:,0], point_clouds[:,1], point_clouds[:,2]
+    color = "blue" if "_real_" in name else "red"
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(projection='3d')
+    ax.set_xlabel('meter')
+    ax.scatter(*points, c=color, alpha=alpha)
+    plt.savefig(args.output_dir / name, bbox_inches='tight', dpi=300)
+
+def sort_based_on_thres(thresholds, sorted_values):
+    bins = [[] for _ in range(len(thresholds)-1)]
+    for i in range(len(thresholds)-1):
+        for loc, pc in sorted_values:
+            if thresholds[i] <= loc <= thresholds[i+1]:
+                bins[i].append(pc)
+    return bins
 
 def main():
     root = (Path(__file__).parent / '../..').resolve()
@@ -453,7 +432,7 @@ def main():
     # args.eval_output_dir = args.output_dir / 'eval' / 'eval_with_train'
     # args.eval_output_dir.mkdir(parents=True, exist_ok=True)
 
-    log_file = args.output_dir / ('log_pipeline_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+    log_file = args.output_dir / "logs" / ('log_pipeline_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     args.logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK)
 
     # start logging
@@ -473,7 +452,7 @@ def main():
     dataset_sim = setup_datasets(args, cfg, data_type="simulated", shuffle=False, remove_missing_gt=True)
 
     make_matching_datasets(dataset_real, dataset_sim, args)
-    
+
     # ######### DATASET ANALYSIS: ########## TODO:fix aug vs no aug setting!- CAN PROBABLY BE REMOVED
     dataset_real_original = None
     dataset_sim_original = None
@@ -483,9 +462,9 @@ def main():
         dataset_real_original = setup_datasets(args, cfg, data_type="real", disable_cfg_aug=False, shuffle=False)
         dataset_sim_original = setup_datasets(args, cfg, data_type="simulated", disable_cfg_aug=False, shuffle=False)
         make_matching_datasets(dataset_real_original, dataset_sim_original, args)
-    
+
     # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=50)
+    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=100)
     # analyze_data_pairs(dataset_real_no_aug, dataset_sim_no_aug, args, cfg, num=50) TODO: this depends on the setting of the current dataset config file!
 
 if __name__ == "__main__":

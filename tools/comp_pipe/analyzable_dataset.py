@@ -7,7 +7,7 @@ from .point_cloud_math import rotate_pointcloud_y
 
 class AnalyzableDataset:
     def __init__(self, dataset: Dict):
-        assert 'train_set' in dataset.keys() and 'test_set' in dataset.keys()
+        assert 'train_set' in dataset.keys()
         self.dataset = dataset
         self.indices = None
         self.infos = None
