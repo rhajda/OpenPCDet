@@ -2,27 +2,26 @@
 Pipeline for comparing real vs simulated data.
 Currently written to be run on single GPU.
 '''
-import time
 import argparse
 import datetime
-import glob
+import trimesh
+from typing import List, Dict
 import os
 import easydict
 from pathlib import Path
 from typing import Tuple, List
 import numpy as np
-import time
 import random
 from tabulate import tabulate
 import subprocess
 from tqdm import tqdm
 from logging import Logger
 import csv
-from scipy.spatial import ConvexHull
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 import seaborn as sns
+import pyvista as pv # Install with "vtk==8.1.2"!!
 
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
@@ -30,6 +29,28 @@ from pcdet.utils import common_utils
 from tools.comp_pipe.analyzable_dataset import AnalyzableDataset
 
 ZERO_ARRAY = np.zeros((1, 3))
+
+def calc_pcd_pairwise_volume_iou(point_cloud_1:List[np.array], point_cloud_2:List[np.array]) -> np.array:
+    result = []
+    for pcd1, pcd2 in tqdm(zip(point_cloud_1, point_cloud_2), "Calculating Volume IOU"):
+        result.append(volume_iou_based_on_mesh_from_pcd(pcd1, pcd2))
+    return np.array(result)
+
+def volume_iou_based_on_mesh_from_pcd(point_cloud_1:np.array, point_cloud_2:np.array) -> float:
+    if point_cloud_1.size==0 or point_cloud_2.size==0:
+        return 0
+    try:
+        pcd1 = trimesh.PointCloud(point_cloud_1)
+        pcd2 = trimesh.PointCloud(point_cloud_2)
+        # mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha=np.inf)
+        mesh_pv_1 = pv.wrap(pcd1.convex_hull)
+        mesh_pv_2 = pv.wrap(pcd2.convex_hull)
+        union_volume = mesh_pv_1.boolean_union(mesh_pv_2).volume
+        intersect_volume = mesh_pv_1.boolean_intersection(mesh_pv_2).volume
+        result = 0 if union_volume==0 else min(1, intersect_volume / union_volume)
+    except Exception: # no Volume IOU could be calculated
+        return 0
+    return result
 
 def rotation_matrix(axis, theta):
     """
@@ -232,52 +253,56 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
 
     dataset_real_analyze = AnalyzableDataset(dataset_real)
     dataset_real_analyze.set_indices_train(idxs_train)
+
     dataset_sim_analyze = AnalyzableDataset(dataset_sim)
     dataset_sim_analyze.set_indices_train(idxs_train)
 
-    log_min_max_mean(args,
-                     title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
-                     header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                     train_real=dataset_real_analyze.get_point_clouds(),
-                     train_sim=dataset_sim_analyze.get_point_clouds(), to_csv="obj_and_background_point_ranges.csv")
-
-    # Location coordinates of all points in bbox: # TODO
+    point_clouds_s = dataset_sim_analyze.get_point_clouds()
+    point_clouds_r = dataset_real_analyze.get_point_clouds()
+    plot_full_pcd(args, point_clouds_s[-1], name="full_pcd_s.png", s=7)
+    plot_full_pcd(args, point_clouds_r[-1], name="full_pcd_r.png", s=7)
 
     real_box_locations = dataset_real_analyze.get_box_locations()
     sim_box_locations = dataset_sim_analyze.get_box_locations()
     real_target_pointclouds = dataset_real_analyze.get_normalized_target()
     sim_target_pointclouds = dataset_sim_analyze.get_normalized_target()
-    # Locations of Bboxes: ALSO: SEE PLOT FOR THIS!
+
+    # log_min_max_mean(args,
+    #                  title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
+    #                  header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+    #                  train_real=dataset_real_analyze.get_point_clouds(),
+    #                  train_sim=dataset_sim_analyze.get_point_clouds(), to_csv="obj_and_background_point_ranges.csv")
+    # # Locations of Bboxes:
     log_min_max_mean(args,
                     title="Bounding Box locations",
                     header=['Attribute', 'real', 'simulated'],
                     train_real=real_box_locations, train_sim=sim_box_locations, to_csv="obj_location_ranges.csv")
-    # Distances between Bboxes:
-    distances_loc = np.linalg.norm(np.array(real_box_locations) - np.array(sim_box_locations), axis=1)
-    log_min_max_mean(args,
-                title="L-2 distance between bounding box locations",
-                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=distances_loc, train_sim=distances_loc,
-                to_csv="obj_box_location_l2_distance.csv")
-    # Rotation of Bboxes:
-    log_min_max_mean(args,
-                title="Absolute difference in rotation(heading angle)",
-                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=dataset_real_analyze.get_box_rotation(),
-                train_sim=dataset_sim_analyze.get_box_rotation(), to_csv="obj_orientation_angle_ranges.csv")
-    # Diff. between rotations:
-    distances_rot = np.abs(np.array(
-        dataset_real_analyze.get_box_rotation()) - np.array(dataset_sim_analyze.get_box_rotation()))
-    log_min_max_mean(args,
-                title="Absolute difference in rotation(heading angle)",
-                header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-                train_real=distances_rot, train_sim=distances_rot,
-                to_csv="obj_orientation_angle_ranges.csv")
-    log_min_max_mean(args,
-                    title="Number of target points",
-                    header=['Attribute', 'real', 'simulated'],
-                    train_real=real_target_pointclouds['target_point_num'],
-                    train_sim=sim_target_pointclouds['target_point_num'], to_csv="target_num_points_ranges.csv")
+    # # Distances between Bboxes:
+    # distances_loc = np.linalg.norm(np.array(real_box_locations) - np.array(sim_box_locations), axis=1)
+    # log_min_max_mean(args,
+    #             title="L-2 distance between bounding box locations",
+    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+    #             train_real=distances_loc, train_sim=distances_loc,
+    #             to_csv="obj_box_location_l2_distance.csv")
+    # # Rotation of Bboxes:
+    # log_min_max_mean(args,
+    #             title="Absolute difference in rotation(heading angle)",
+    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+    #             train_real=dataset_real_analyze.get_box_rotation(),
+    #             train_sim=dataset_sim_analyze.get_box_rotation(), to_csv="obj_orientation_angle_ranges.csv")
+    # # Diff. between rotations:
+    # distances_rot = np.abs(np.array(
+    #     dataset_real_analyze.get_box_rotation()) - np.array(dataset_sim_analyze.get_box_rotation()))
+    # log_min_max_mean(args,
+    #             title="Absolute difference in rotation(heading angle)",
+    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+    #             train_real=distances_rot, train_sim=distances_rot,
+    #             to_csv="obj_orientation_angle_ranges.csv")
+    # log_min_max_mean(args,
+    #                 title="Number of target points",
+    #                 header=['Attribute', 'real', 'simulated'],
+    #                 train_real=real_target_pointclouds['target_point_num'],
+    #                 train_sim=sim_target_pointclouds['target_point_num'], to_csv="obj_number_of_points_ranges.csv")
 
     # PLOTS:
     sns.set_theme(style="ticks")
@@ -285,13 +310,13 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     # sort all point clouds into  buckets:
     import time
     t0 = time.time()
-    real_box_dist = [np.linalg.norm(x) for x in real_box_locations]
-    real_sorted = sorted(zip(real_box_dist, real_target_pointclouds['normalized_target']), key=lambda x: x[0])
-    sim_box_dist = [np.linalg.norm(x) for x in sim_box_locations]
-    sim_sorted = sorted(zip(sim_box_dist, sim_target_pointclouds['normalized_target']), key=lambda x: x[0])
-    thresholds = list(np.arange(0, 100, 33.33)) + [100]
-    bins_real = sort_based_on_thres(thresholds, real_sorted)
-    bins_sim = sort_based_on_thres(thresholds, sim_sorted)
+    real_box_dist = [((1, -1)[x[0]<0]) * np.linalg.norm(x) for x in real_box_locations]
+    real_sorted = sorted(zip(real_box_dist, real_target_pointclouds['normalized_target']), key=lambda x: np.abs(x[0]))
+    sim_box_dist = [((1, -1)[x[0]<0]) * np.linalg.norm(x) for x in sim_box_locations]
+    sim_sorted = sorted(zip(sim_box_dist, sim_target_pointclouds['normalized_target']), key=lambda x: np.abs(x[0]))
+    thresholds = list(np.arange(0, 99, 33.33)) + [100]
+    bins_real = binning_based_on_threshold(thresholds, real_sorted)
+    bins_sim = binning_based_on_threshold(thresholds, sim_sorted)
     print(time.time() - t0)
 
     # 2D HISTOGRAM PLOTS GENERAL DATA:
@@ -315,12 +340,11 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     # 2D HISTOGRAM PLOTS CAR:
     # color closer points differently based distance => use varaible c for the removed dim
     # See: https://stackoverflow.com/questions/20105364/how-can-i-make-a-scatter-plot-colored-by-density-in-matplotlib
-    scatter_sideplot = False
+    scatter_sideplot = True
     if scatter_sideplot:
         for i in [0, 0.1, 1, 2]:
-            point_clouds = np.concatenate(bins_real[0])
+            point_clouds = np.concatenate(bins_real[0]['pcds'])
             side_plot(args, point_clouds, dim_to_skip=i, reverse=(i==0.1))
-    print()
 
     # point_cloud_range = [int(x/4) for x in cfg.DATA_CONFIG["POINT_CLOUD_RANGE"]]
     # # Plot 1: DATA DISTRIBUTIONS!
@@ -340,27 +364,101 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     # plt.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations.png', bbox_inches='tight', dpi=300)
 
 
+    # IOU:
+    make_iou_tables = False
+    if make_iou_tables:
+        for i, (br, bs) in enumerate(zip(bins_real, bins_sim)): # TODO
+            iou_distances = calc_pcd_pairwise_volume_iou(br, bs)
+            if iou_distances.size > 0:
+                log_min_max_mean(args,
+                                title="IOU distance",
+                                header=['Attribute - volume_iou', 'real', 'simulated'],
+                                train_real=iou_distances,
+                                train_sim=iou_distances,
+                                to_csv=f"volume_iou_{thresholds[i]}to{thresholds[i+1]}_ranges.csv")
+
     # Plot 2: HOW CARS LOOK TO THE NETWORK:
-    # for alpha in [0.001, 0.002, 0.005, 0.001, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
-    #     # REAL:
-    #     for b, th in zip(bins_real, thresholds[1:]):
-    #         name = f'car_plot_real_normalized_to_{int(th)}_alpha{str(alpha).replace(".", "")}.png'
-    #         make_plot(args, b, name, alpha, num_points=-1)
-    #     # SIMULATED:
-    #     for b, th in zip(bins_sim, thresholds[1:]):
-    #         name = f'car_plot_sim_normalized_to_{int(th)}_alpha{str(alpha).replace(".", "")}.png'
-    #         make_plot(args, b, name, alpha, num_points=-1)
-    # for num_points, alpha in zip([40, 80, 100, 200, 300],[0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]):
-    #     # REAL:
-    #     for i, (b, th) in enumerate(zip(bins_real, thresholds[1:])):
-    #         name = help_i(th, num_points, alpha, typ="real")
-    #         make_plot(args, b, name, alpha, num_points)
-    #     # SIMULATED:
-    #     for i, (b, th) in enumerate(zip(bins_sim, thresholds[1:])):
-    #         name = help_i(th, num_points, alpha, typ="sim")
-    #         make_plot(args, b, name, alpha, num_points)
+    plot_car_3d = False
+    num_points = [9731, 20000] #, 25000, 30000, 35000] [20000, 25000]
+    alphas = [0.85] # [0.9, 0.85, 0.75]
+    if plot_car_3d:
+        # REAL:
+        side_plot_car_3d_for_range(args, bins=bins_real, alphas=alphas, num_points=num_points, data_type="real")
+        # SIMULATED:
+        side_plot_car_3d_for_range(args, bins=bins_sim, alphas=alphas, num_points=num_points, data_type="sim")
 
     args.logger.info('********************** End comparison of data pairs **********************')
+
+def side_plot_car_3d_for_range(args, bins: List[Dict], alphas: List[int], num_points: List[int], data_type: str,
+                               use_color_gradient: bool=True, car_size = np.array([4.88, 1.9, 1.18])) -> None:
+    for pcd_bin in bins:
+        for alpha in alphas:
+            for num_point in num_points:
+                side_plot_car_3d(args, pcd_bin, num_point, alpha, data_type, use_color_gradient, car_size)
+
+def side_plot_car_3d(args: Dict, pcd_bin: List[Dict], num_point: int, alpha: float, data_type: str,
+                     use_color_gradient: bool=True, car_size = np.array([4.88, 1.9, 1.18])) -> None:
+    # assert data_type in ["real", "sim"]
+
+    name = f'car_plot_3d_{data_type}_NORM_range{str(int(pcd_bin["th"][0]))}_{str(int(pcd_bin["th"][1]))}' + \
+        f'points{num_point}_alpha{str(alpha).replace(".", "")[1:]}.png'
+
+    points = np.concatenate(pcd_bin['pcds'], axis=0)
+    if num_point != -1 and num_point <= points.shape[0]: # randomly sample num_points
+        index = np.random.choice(points.shape[0], num_point, replace=False)
+        points = points[index]
+        # add two negative and two positive scans with the most points.
+        best_pos = (0, None)
+        best_neg = (0, None)
+        for i, loc in enumerate(pcd_bin['loc']):
+            if loc > 0 and pcd_bin['count'][i] > best_pos[0]:
+                best_pos = (pcd_bin['count'][i], pcd_bin['pcds'][i])
+            elif loc <= 0 and pcd_bin['count'][i] > best_neg[0]:
+                best_neg = (pcd_bin['count'][i], pcd_bin['pcds'][i])
+        if best_pos[1] is not None:
+            points = np.concatenate([points, best_pos[1]], axis=0)
+        if best_neg[1] is not None:
+            points = np.concatenate([points, best_neg[1]], axis=0)
+    else:
+        raise ValueError(f"'num_point': {num_point} more than available points: {points.shape[0]}")
+
+    norm_c  = None
+    if use_color_gradient:
+        norm_c = (points[:, 1] - points[:, 1].min())
+        norm_c = norm_c / norm_c.max()
+        norm_c[norm_c>=0.5] = -1 * norm_c[norm_c>=0.5] + 1
+        norm_c[np.argmax(norm_c)] = 1
+        alpha = np.ones_like(norm_c) * alpha
+        alpha[np.argmax(norm_c)] = 0.0
+    if data_type == "real":
+        cmap = 'viridis'
+    elif data_type == "sim":
+        cmap = None
+    elif data_type == "sim_noise":
+        cmap = 'inferno'
+    else:
+        raise ValueError("'data_type' needs to be in ['real', 'sim']!")
+
+    points_axis_split = points[:,0], points[:,1], points[:,2]
+
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(projection='3d')
+    ax.set_xlabel('meter')
+    ax.set_xlim([-car_size[0] / 2 - car_size[0]*0.15, car_size[0] / 2 + car_size[0]*0.15])
+    ax.set_ylim([-car_size[1] / 2 - car_size[1]*0.15, car_size[1] / 2 + car_size[1]*0.15])
+    ax.set_zlim([-car_size[2] / 2, car_size[2] / 2 + car_size[2]*0.2])
+    ax.scatter(*points_axis_split, c=norm_c, alpha=alpha, cmap=cmap)
+    plt.savefig(args.output_dir / name, bbox_inches='tight', dpi=300)
+
+def plot_full_pcd(args, points, name="full_pcd.png", s=5):
+    points_axis_split = points[:,0], points[:,1]
+    fig = plt.figure(figsize=(24, 24))
+    ax = fig.add_subplot()
+    ax.set_xlabel('meter')
+    ax.set_xlim([-100, 100])
+    ax.set_ylim([-50, 50])
+    ax.scatter(*points_axis_split, s=s)
+    plt.savefig(args.output_dir / ("top_"+name), bbox_inches='tight', dpi=300)
 
 def side_plot(args, point_clouds, dim_to_skip, car_size = np.array([4.88, 1.9, 1.18]), reverse=True):
     """
@@ -382,35 +480,20 @@ def side_plot(args, point_clouds, dim_to_skip, car_size = np.array([4.88, 1.9, 1
     norm_c = (point_clouds[:, dim_to_skip] - point_clouds[:, dim_to_skip].min())
     norm_c = norm_c / norm_c.max()
     norm_c = norm_c[::-1] if not reverse else norm_c
-    s = 12 if dim_to_skip == 0 else 6
     alpha = (norm_c[::-1] + 0.1) * 0.3 if dim_to_skip == 0 else 0.3
-    ax.scatter(*points, c=norm_c, alpha=alpha, s=s) # c=1 : black=Front , c=0 : white
+    s = alpha *2* 24 if dim_to_skip == 0 else 6
+    ax.scatter(*points, c=norm_c, alpha=alpha, s=s, cmap = 'viridis') # c=1 : black=Front , c=0 : white
     plt.savefig(args.output_dir / f"car_angle_plot_real_skipdim{dim_to_skip}_{point_clouds.shape[0]}points_{'R'*reverse}.png", dpi=300)
 
-def help_i(th, num_points, alpha, typ):
-    # to 33 use 40 pointclouds -> to 66 use 80 -> to 100 use 160
-    name = f'car_plot_{typ}_normalized_{int(th-33)}_to_{int(th)}_alpha{str(alpha).replace(".", "")}_points_{num_points}.png'
-    return name
-
-def make_plot(args, b, name, alpha, num_points):
-    points_all = np.concatenate(b[:num_points], axis=0) if num_points != -1 else np.concatenate(b, axis=0)
-    plot_pointcloud_stacked(points_all, alpha, name, args)
-
-def plot_pointcloud_stacked(point_clouds, alpha, name, args):
-    points = point_clouds[:,0], point_clouds[:,1], point_clouds[:,2]
-    color = "blue" if "_real_" in name else "red"
-    fig = plt.figure(figsize=(12, 12))
-    ax = fig.add_subplot(projection='3d')
-    ax.set_xlabel('meter')
-    ax.scatter(*points, c=color, alpha=alpha)
-    plt.savefig(args.output_dir / name, bbox_inches='tight', dpi=300)
-
-def sort_based_on_thres(thresholds, sorted_values):
-    bins = [[] for _ in range(len(thresholds)-1)]
+def binning_based_on_threshold(thresholds: List[int], sorted_values: List[Tuple[np.array,np.array]]) -> List[Dict]:
+    bins = [{"pcds":[], "th":[], "loc":[], "count":[]} for _ in range(len(thresholds)-1)]
     for i in range(len(thresholds)-1):
+        bins[i]["th"] = (thresholds[i], thresholds[i+1])
         for loc, pc in sorted_values:
-            if thresholds[i] <= loc <= thresholds[i+1]:
-                bins[i].append(pc)
+            if thresholds[i] <= np.abs(loc) <= thresholds[i+1]:
+                bins[i]["pcds"].append(pc)
+                bins[i]["count"].append(pc.shape[0])
+                bins[i]["loc"].append(loc)
     return bins
 
 def main():
@@ -418,19 +501,12 @@ def main():
     os.chdir(str(root / 'tools')) # directory change makes path handling easier later on
     args, cfg = parse_config()
 
-    # check the passed parameters:
-    # args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU if args.batch_size is None else args.batch_size
-    # args.epochs = cfg.OPTIMIZATION.NUM_EPOCHS if args.epochs is None else args.epochs
     if args.fix_random_seed:
         common_utils.set_random_seed(666)
 
     # Set up logging and output directories
     args.output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
-    # args.ckpt_dir = args.output_dir / 'ckpt'
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    # args.ckpt_dir.mkdir(parents=True, exist_ok=True)
-    # args.eval_output_dir = args.output_dir / 'eval' / 'eval_with_train'
-    # args.eval_output_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = args.output_dir / "logs" / ('log_pipeline_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     args.logger = common_utils.create_logger(log_file, rank=cfg.LOCAL_RANK)
@@ -438,14 +514,6 @@ def main():
     # start logging
     args.logger.info('**********************Start logging**********************')
     log_git_data(args.logger)
-
-    # log available gpus
-    # gpu_list = os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() else 'ALL'
-    # args.logger.info('CUDA_VISIBLE_DEVICES=%s' % gpu_list)
-    # for key, val in vars(args).items():
-    #     args.logger.info('{:16} {}'.format(key, val))
-    # log_config_to_file(cfg, logger=args.logger)
-    # os.system('cp %s %s' % (args.cfg_file, args.output_dir))
 
     # ######### LOAD DATA SETS: ##########
     dataset_real = setup_datasets(args, cfg, data_type="real", shuffle=False, remove_missing_gt=True)
@@ -464,8 +532,7 @@ def main():
         make_matching_datasets(dataset_real_original, dataset_sim_original, args)
 
     # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=100)
-    # analyze_data_pairs(dataset_real_no_aug, dataset_sim_no_aug, args, cfg, num=50) TODO: this depends on the setting of the current dataset config file!
+    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=300)
 
 if __name__ == "__main__":
     main()

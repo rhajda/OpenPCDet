@@ -25,8 +25,8 @@ class AnalyzableDataset:
         box_locations = []
         for info in tqdm(self.infos, 'Load box locations'):
             box_location = info['annos']['location'][0]
-            if get_center_coords:
-                box_location += info['annos']['dimensions'][0]/2
+            # if get_center_coords:
+            #     box_location += info['annos']['dimensions'][0]/2 # It should already be the center
             box_locations.append(box_location)
         return box_locations
 
@@ -52,19 +52,19 @@ class AnalyzableDataset:
         return box_size
 
     def get_normalized_target(self):
-        result = {'target_point_num': [], 
+        result = {'target_point_num': [],
                   'normalized_target': []}
         for info, i in tqdm(zip(self.infos, self.indices), 'Load point_clouds'):
-            sample = self.dataset.train_set[i]        
+            sample = self.dataset.train_set[i]
             # current_idx = sample['frame_id']
             point_cloud_loaded = sample['points']
             # point_cloud_original = self.dataset.train_set.get_lidar(current_idx)['points']
-            target_point_flags = box_utils.in_hull(point_cloud_loaded, 
+            target_point_flags = box_utils.in_hull(point_cloud_loaded,
                                                    box_utils.boxes_to_corners_3d(info['annos']['gt_boxes_lidar'])[0])
             result['target_point_num'].append(target_point_flags.sum())
             # num_points_original.append(info['annos']['num_points_in_gt'][0])
-            
-            target_point_cloud_loaded = point_cloud_loaded[target_point_flags] 
+
+            target_point_cloud_loaded = point_cloud_loaded[target_point_flags]
             location_normalized_point_cloud = target_point_cloud_loaded - sample["gt_boxes"][0][:3]
             rotation_normalized_point_cloud = rotate_pointcloud_y(location_normalized_point_cloud, info['annos']['rotation_y'])
             result['normalized_target'].append(rotation_normalized_point_cloud)
@@ -73,9 +73,8 @@ class AnalyzableDataset:
     def get_point_clouds(self):
         point_clouds = []
         for i in tqdm(self.indices, 'Load point_clouds'):
-            point_clouds.append(self.dataset.train_set[i]['points'])       
+            point_clouds.append(self.dataset.train_set[i]['points'])
         return point_clouds
-            
 
 
-        
+
