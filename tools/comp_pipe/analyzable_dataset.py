@@ -9,13 +9,11 @@ class AnalyzableDataset:
     def __init__(self, dataset: Dict):
         assert 'train_set' in dataset.keys()
         self.dataset = dataset
-        self.indices = None
         self.infos = None
 
     def set_indices_train(self, indices: List[int]):
-        self.indices = indices
         frame_ids = []
-        for i in tqdm(indices, 'Load frame ids'):
+        for i in tqdm(sorted(indices), 'Load frame ids'):
             frame_ids.append(self.dataset.train_set[i]['frame_id'])
         self.infos = self.dataset.train_set.get_infos(sample_id_list=frame_ids)
 
@@ -54,18 +52,17 @@ class AnalyzableDataset:
     def get_normalized_target(self):
         result = {'target_point_num': [],
                   'normalized_target': []}
-        for info, i in tqdm(zip(self.infos, self.indices), 'Load point_clouds'):
-            sample = self.dataset.train_set[i]
-            # current_idx = sample['frame_id']
-            point_cloud_loaded = sample['points']
+        for info in tqdm(self.infos, 'Load point_clouds'):
+            point_cloud_loaded = self.dataset.train_set.get_lidar(info['point_cloud']['lidar_idx'])
             # point_cloud_original = self.dataset.train_set.get_lidar(current_idx)['points']
             target_point_flags = box_utils.in_hull(point_cloud_loaded,
                                                    box_utils.boxes_to_corners_3d(info['annos']['gt_boxes_lidar'])[0])
             result['target_point_num'].append(target_point_flags.sum())
+            # assert info['annos']['num_points_in_gt'][0] == target_point_flags.sum()
             # num_points_original.append(info['annos']['num_points_in_gt'][0])
 
             target_point_cloud_loaded = point_cloud_loaded[target_point_flags]
-            location_normalized_point_cloud = target_point_cloud_loaded - sample["gt_boxes"][0][:3]
+            location_normalized_point_cloud = target_point_cloud_loaded - info['annos']['gt_boxes_lidar'][0][:3]
             rotation_normalized_point_cloud = rotate_pointcloud_y(location_normalized_point_cloud, info['annos']['rotation_y'])
             result['normalized_target'].append(rotation_normalized_point_cloud)
         return result
@@ -76,5 +73,7 @@ class AnalyzableDataset:
             point_clouds.append(self.dataset.train_set[i]['points'])
         return point_clouds
 
+    def get_point_cloud_at_index(self, pcd_index: str):
+        return self.dataset.train_set.get_lidar(pcd_index)
 
 

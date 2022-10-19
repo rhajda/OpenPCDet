@@ -77,11 +77,11 @@ class IndyDataset(DatasetTemplate):
             if len(self.__getitem__(i)['gt_boxes']) > 0: # this entry CAN be used for training
                 new_kitti_info.append(self.kitti_infos[i])
 
-        self.kitti_infos = new_kitti_info 
+        self.kitti_infos = new_kitti_info
         self.missing_gt_reselect = True
         self.only_gt_box = False
         self.data_processor.data_processor_queue = tmp
-        
+
         if self.logger is not None:
             self.logger.info('Total samples for Indy dataset after optimizing: %d' % (len(self.kitti_infos)))
 
@@ -221,12 +221,12 @@ class IndyDataset(DatasetTemplate):
                 loc_lidar = loc
                 l, w, h = dims[:, 0:1], dims[:, 1:2], dims[:, 2:3]  # from kitti format!
                 #loc_lidar[:, 2] += h[:, 0] / 2  # todo: do we need to add h/2 to the z-location in our case?
-                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)               
+                gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
                 info['annos'] = annotations
 
-                if count_inside_pts:
+                if count_inside_pts: # TODO
                     points = self.get_lidar(sample_idx)
                     corners_lidar = box_utils.boxes_to_corners_3d(gt_boxes_lidar)
                     num_points_in_gt = -np.ones(num_gt, dtype=np.int32)
@@ -425,9 +425,9 @@ class IndyDataset(DatasetTemplate):
 
         if self.only_gt_box:
             assert len(self.data_processor.data_processor_queue) == 1 # has to be reduced before using this option!
-            data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
+            data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.
             return data_dict
-    
+
         if "points" in get_item_list:
             points = self.get_lidar(sample_idx)
             if self.dataset_cfg.FOV_POINTS_ONLY:
@@ -443,7 +443,7 @@ class IndyDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
-        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.        
+        data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.
         return data_dict
 
 

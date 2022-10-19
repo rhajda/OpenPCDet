@@ -22,6 +22,7 @@ import numpy as np
 import math
 import seaborn as sns
 import pyvista as pv # Install with "vtk==8.1.2"!!
+import pandas as pd
 
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
@@ -102,7 +103,7 @@ def parse_config() -> Tuple[argparse.Namespace, easydict.EasyDict]:
         cfg_from_list(args.set_cfgs, cfg)
 
     assert [i for i in cfg.DATA_CONFIG.DATA_PROCESSOR if i['NAME'] == 'sample_points'] == [], \
-        'sample_points not allowed, as analisys should be done on the original point_cloud' # TODO this might be a contradiction w.r.t to idea of this script!!
+        'sample_points not allowed, as analysis should be done on the original point_cloud'
     return args, cfg
 
 def setup_datasets(args: argparse.Namespace, cfg: easydict.EasyDict, data_type:str = "real",
@@ -241,6 +242,7 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     Note: supports additional comparisons with augmented data, but this is not used for the indy dataset.
     """
     args.logger.info('**********************Start comparison of data pairs**********************')
+    sns.set_theme(style="ticks")
     # check for matching lengths
     train_len = len(dataset_real.train_set)
     assert train_len == len(dataset_sim.train_set), \
@@ -257,59 +259,51 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     dataset_sim_analyze = AnalyzableDataset(dataset_sim)
     dataset_sim_analyze.set_indices_train(idxs_train)
 
-    point_clouds_s = dataset_sim_analyze.get_point_clouds()
-    point_clouds_r = dataset_real_analyze.get_point_clouds()
-    plot_full_pcd(args, point_clouds_s[-1], name="full_pcd_s.png", s=7)
-    plot_full_pcd(args, point_clouds_r[-1], name="full_pcd_r.png", s=7)
-
     real_box_locations = dataset_real_analyze.get_box_locations()
     sim_box_locations = dataset_sim_analyze.get_box_locations()
     real_target_pointclouds = dataset_real_analyze.get_normalized_target()
     sim_target_pointclouds = dataset_sim_analyze.get_normalized_target()
 
-    # log_min_max_mean(args,
-    #                  title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
-    #                  header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-    #                  train_real=dataset_real_analyze.get_point_clouds(),
-    #                  train_sim=dataset_sim_analyze.get_point_clouds(), to_csv="obj_and_background_point_ranges.csv")
-    # # Locations of Bboxes:
-    log_min_max_mean(args,
-                    title="Bounding Box locations",
-                    header=['Attribute', 'real', 'simulated'],
-                    train_real=real_box_locations, train_sim=sim_box_locations, to_csv="obj_location_ranges.csv")
-    # # Distances between Bboxes:
-    # distances_loc = np.linalg.norm(np.array(real_box_locations) - np.array(sim_box_locations), axis=1)
-    # log_min_max_mean(args,
-    #             title="L-2 distance between bounding box locations",
-    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-    #             train_real=distances_loc, train_sim=distances_loc,
-    #             to_csv="obj_box_location_l2_distance.csv")
-    # # Rotation of Bboxes:
-    # log_min_max_mean(args,
-    #             title="Absolute difference in rotation(heading angle)",
-    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-    #             train_real=dataset_real_analyze.get_box_rotation(),
-    #             train_sim=dataset_sim_analyze.get_box_rotation(), to_csv="obj_orientation_angle_ranges.csv")
-    # # Diff. between rotations:
-    # distances_rot = np.abs(np.array(
-    #     dataset_real_analyze.get_box_rotation()) - np.array(dataset_sim_analyze.get_box_rotation()))
-    # log_min_max_mean(args,
-    #             title="Absolute difference in rotation(heading angle)",
-    #             header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
-    #             train_real=distances_rot, train_sim=distances_rot,
-    #             to_csv="obj_orientation_angle_ranges.csv")
-    # log_min_max_mean(args,
-    #                 title="Number of target points",
-    #                 header=['Attribute', 'real', 'simulated'],
-    #                 train_real=real_target_pointclouds['target_point_num'],
-    #                 train_sim=sim_target_pointclouds['target_point_num'], to_csv="obj_number_of_points_ranges.csv")
+    create_tables=False
+    if create_tables:
+        log_min_max_mean(args,
+                        title="Some metrics on the selected corresponding point cloud pairs. Due to the sampling process to guarantee same size => points wont be the same each time!",
+                        header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                        train_real=dataset_real_analyze.get_point_clouds(),
+                        train_sim=dataset_sim_analyze.get_point_clouds(), to_csv="obj_and_background_point_ranges.csv")
+        # Locations of Bboxes:
+        log_min_max_mean(args,
+                        title="Bounding Box locations",
+                        header=['Attribute', 'real', 'simulated'],
+                        train_real=real_box_locations, train_sim=sim_box_locations, to_csv="obj_location_ranges.csv")
+        # Distances between Bboxes:
+        distances_loc = np.linalg.norm(np.array(real_box_locations) - np.array(sim_box_locations), axis=1)
+        log_min_max_mean(args,
+                    title="L-2 distance between bounding box locations",
+                    header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                    train_real=distances_loc, train_sim=distances_loc,
+                    to_csv="obj_box_location_l2_distance.csv")
+        # Rotation of Bboxes:
+        log_min_max_mean(args,
+                    title="Absolute difference in rotation(heading angle)",
+                    header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                    train_real=dataset_real_analyze.get_box_rotation(),
+                    train_sim=dataset_sim_analyze.get_box_rotation(), to_csv="obj_orientation_angle_ranges.csv")
+        # Diff. between rotations:
+        distances_rot = np.abs(np.array(
+            dataset_real_analyze.get_box_rotation()) - np.array(dataset_sim_analyze.get_box_rotation()))
+        log_min_max_mean(args,
+                    title="Absolute difference in rotation(heading angle)",
+                    header=['Attribute', 'real_aug', 'simulated_aug', 'real_no_aug', 'simulated_no_aug'],
+                    train_real=distances_rot, train_sim=distances_rot,
+                    to_csv="obj_orientation_angle_ranges.csv")
+        log_min_max_mean(args,
+                        title="Number of target points",
+                        header=['Attribute', 'real', 'simulated'],
+                        train_real=real_target_pointclouds['target_point_num'],
+                        train_sim=sim_target_pointclouds['target_point_num'], to_csv="obj_number_of_points_ranges.csv")
 
-    # PLOTS:
-    sns.set_theme(style="ticks")
-    # WITH BUCKETS:
-    # sort all point clouds into  buckets:
-    import time
-    t0 = time.time()
+    # CREATE BUCKETS:
     real_box_dist = [((1, -1)[x[0]<0]) * np.linalg.norm(x) for x in real_box_locations]
     real_sorted = sorted(zip(real_box_dist, real_target_pointclouds['normalized_target']), key=lambda x: np.abs(x[0]))
     sim_box_dist = [((1, -1)[x[0]<0]) * np.linalg.norm(x) for x in sim_box_locations]
@@ -317,77 +311,97 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     thresholds = list(np.arange(0, 99, 33.33)) + [100]
     bins_real = binning_based_on_threshold(thresholds, real_sorted)
     bins_sim = binning_based_on_threshold(thresholds, sim_sorted)
-    print(time.time() - t0)
 
     # 2D HISTOGRAM PLOTS GENERAL DATA:
-    # import pandas as pd
-    # df_normal_a = pd.DataFrame(data = [sum([cur_bin.shape[0] for cur_bin in bins]) for bins in bins_sim],
-    #                            columns=['average number of points'])
-    # df_normal_b = pd.DataFrame(data = [xx + 5 for xx in thresholds[:-1]],
-    #                            columns=['meter']).assign(group = 'Group B')
-    # score_data = pd.concat([df_normal_a, df_normal_b])
-    # point_sum_per_bin = [(i*5, sum([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
-    # point_avg_per_bin = [(i*5, np.mean([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
-    # bins_points = []
-    # data = pd.DataFrame(data = point_sum_per_bin)
-    # fig = sns.histplot(data=data).get_figure()
-    # fig.axes[0].set_xlabel('total num of points w.r.t. range')
-    # fig.savefig("hist_of_total_point_num.png", bbox_inches='tight')
-    # fig = sns.histplot(data=point_avg_per_bin).get_figure()
-    # fig.axes[0].set_xlabel('average number of points w.r.t. range')
-    # fig.savefig("hist_of_avg_point_num.png", bbox_inches='tight')
+    # data_plots(cur_bin)
 
     # 2D HISTOGRAM PLOTS CAR:
-    # color closer points differently based distance => use varaible c for the removed dim
-    # See: https://stackoverflow.com/questions/20105364/how-can-i-make-a-scatter-plot-colored-by-density-in-matplotlib
-    scatter_sideplot = True
+    scatter_sideplot = False
     if scatter_sideplot:
         for i in [0, 0.1, 1, 2]:
             point_clouds = np.concatenate(bins_real[0]['pcds'])
             side_plot(args, point_clouds, dim_to_skip=i, reverse=(i==0.1))
 
-    # point_cloud_range = [int(x/4) for x in cfg.DATA_CONFIG["POINT_CLOUD_RANGE"]]
-    # # Plot 1: DATA DISTRIBUTIONS!
-    # # REAL:
-    # x = np.array(real_box_locations)[:, 0]
-    # y = np.array(real_box_locations)[:, 1]
-    # plot = sns.jointplot(x=x, y=y, color="#4CB391")
-    # plot.fig.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations_sns.png', bbox_inches='tight')
-    # plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
-    # plt.savefig(args.output_dir / 'hexbin_plot_real_bbox_locations.png', bbox_inches='tight')
-    # # SIMULATED:
-    # x = np.array(sim_box_locations)[:, 0]
-    # y = np.array(sim_box_locations)[:, 1]
-    # plot = sns.jointplot(x=x, y=y, color="#4CB391")
-    # plot.fig.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations_sns.png', bbox_inches='tight')
-    # plt.hexbin(x, y, gridsize=(point_cloud_range[3]-point_cloud_range[0], point_cloud_range[4]-point_cloud_range[1]))
-    # plt.savefig(args.output_dir / 'hexbin_plot_sim_bbox_locations.png', bbox_inches='tight', dpi=300)
-
+    # BIRD EYE VIEW PLOTS OF ENV:
+    scatter_plot_bev = False
+    if scatter_plot_bev:
+        point_clouds_s = dataset_sim_analyze.get_point_clouds()
+        point_clouds_r = dataset_real_analyze.get_point_clouds()
+        plot_full_pcd(args, point_clouds_s[-1], name="full_pcd_s.png", s=7)
+        plot_full_pcd(args, point_clouds_r[-1], name="full_pcd_r.png", s=7)
 
     # IOU:
-    make_iou_tables = False
+    make_iou_tables = True
     if make_iou_tables:
-        for i, (br, bs) in enumerate(zip(bins_real, bins_sim)): # TODO
-            iou_distances = calc_pcd_pairwise_volume_iou(br, bs)
-            if iou_distances.size > 0:
-                log_min_max_mean(args,
-                                title="IOU distance",
-                                header=['Attribute - volume_iou', 'real', 'simulated'],
-                                train_real=iou_distances,
-                                train_sim=iou_distances,
-                                to_csv=f"volume_iou_{thresholds[i]}to{thresholds[i+1]}_ranges.csv")
+        vicinity_slack= 5 # how many successing an preciding point clouds to compare to select the best match.
+        iou_distances = []
+        # TODO: Denoise!
+        for i, br in tqdm(enumerate(dataset_real_analyze.infos)):
+            br_idx = br['point_cloud']['lidar_idx']
+            br_loc = br['annos']['location'][0]
+            if np.linalg.norm(br_loc) < 33:
+                closest_sample_idx = find_closest_sample_index(br_loc, dataset_sim_analyze, i, vicinity_slack)
+                pcd_1 = dataset_real_analyze.get_point_cloud_at_index(br_idx)
+                pcd_2 = dataset_sim_analyze.get_point_cloud_at_index(closest_sample_idx)
+                iou_distances.append(volume_iou_based_on_mesh_from_pcd(pcd_1, pcd_2))
+
+        iou_distances = np.array(iou_distances)
+        print(np.min(iou_distances), np.max(iou_distances), np.mean(iou_distances))
+        if iou_distances.size > 0:
+            log_min_max_mean(args,
+                            title="IOU distance",
+                            header=['Attribute - volume_iou', 'real', 'simulated'],
+                            train_real=iou_distances,
+                            train_sim=iou_distances,
+                            to_csv=f"volume_iou_0to100_ranges.csv")
+
 
     # Plot 2: HOW CARS LOOK TO THE NETWORK:
     plot_car_3d = False
-    num_points = [9731, 20000] #, 25000, 30000, 35000] [20000, 25000]
-    alphas = [0.85] # [0.9, 0.85, 0.75]
     if plot_car_3d:
+        num_points = [9731, 20000] # This looks the best
+        alphas = [0.85] # This looks the best
         # REAL:
-        side_plot_car_3d_for_range(args, bins=bins_real, alphas=alphas, num_points=num_points, data_type="real")
+        try:
+            side_plot_car_3d_for_range(args, bins=bins_real, alphas=alphas, num_points=num_points, data_type="real")
+        except ValueError:
+            print("WARNING: not enough points to available.")
         # SIMULATED:
-        side_plot_car_3d_for_range(args, bins=bins_sim, alphas=alphas, num_points=num_points, data_type="sim")
+        try:
+            side_plot_car_3d_for_range(args, bins=bins_sim, alphas=alphas, num_points=num_points, data_type="sim")
+        except ValueError:
+            print("WARNING: not enough points to available.")
+
 
     args.logger.info('********************** End comparison of data pairs **********************')
+
+def find_closest_sample_index(target_loc, data_set_analyze, i, vicinity_slack):
+    idx_from = max(i-vicinity_slack, 0)
+    idx_to = min(i+vicinity_slack, len(data_set_analyze.infos)-1)
+    closest_cloud = np.inf, -1
+    for sample in data_set_analyze.infos[idx_from:idx_to]:
+        dist = np.linalg.norm(target_loc - sample['annos']['location'][0])
+        if  dist < closest_cloud[0]:
+            closest_cloud = dist, sample['point_cloud']['lidar_idx']
+    return closest_cloud[1] # return corresponding index
+
+
+# def data_plots(cur_bin): # TODO: NEED TO BE UPDATED FOR NEW DATA FORMATS!
+#     df_normal_a = pd.DataFrame(data = [sum([cur_bin.shape[0] for cur_bin in bins]) for bins in bins_sim],
+#                                columns=['average number of points'])
+#     df_normal_b = pd.DataFrame(data = [xx + 5 for xx in thresholds[:-1]],
+#                                columns=['meter']).assign(group = 'Group B')
+#     score_data = pd.concat([df_normal_a, df_normal_b])
+#     point_sum_per_bin = [(i*5, sum([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
+#     point_avg_per_bin = [(i*5, np.mean([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
+#     bins_points = []
+#     data = pd.DataFrame(data = point_sum_per_bin)
+#     fig = sns.histplot(data=data).get_figure()
+#     fig.axes[0].set_xlabel('total num of points w.r.t. range')
+#     fig.savefig("hist_of_total_point_num.png", bbox_inches='tight')
+#     fig = sns.histplot(data=point_avg_per_bin).get_figure()
+#     fig.axes[0].set_xlabel('average number of points w.r.t. range')
+#     fig.savefig("hist_of_avg_point_num.png", bbox_inches='tight')
 
 def side_plot_car_3d_for_range(args, bins: List[Dict], alphas: List[int], num_points: List[int], data_type: str,
                                use_color_gradient: bool=True, car_size = np.array([4.88, 1.9, 1.18])) -> None:
@@ -398,7 +412,6 @@ def side_plot_car_3d_for_range(args, bins: List[Dict], alphas: List[int], num_po
 
 def side_plot_car_3d(args: Dict, pcd_bin: List[Dict], num_point: int, alpha: float, data_type: str,
                      use_color_gradient: bool=True, car_size = np.array([4.88, 1.9, 1.18])) -> None:
-    # assert data_type in ["real", "sim"]
 
     name = f'car_plot_3d_{data_type}_NORM_range{str(int(pcd_bin["th"][0]))}_{str(int(pcd_bin["th"][1]))}' + \
         f'points{num_point}_alpha{str(alpha).replace(".", "")[1:]}.png'
@@ -437,7 +450,7 @@ def side_plot_car_3d(args: Dict, pcd_bin: List[Dict], num_point: int, alpha: flo
     elif data_type == "sim_noise":
         cmap = 'inferno'
     else:
-        raise ValueError("'data_type' needs to be in ['real', 'sim']!")
+        raise ValueError("'data_type' needs to be in ['real', 'sim', 'sim_noise']!")
 
     points_axis_split = points[:,0], points[:,1], points[:,2]
 
@@ -466,6 +479,9 @@ def side_plot(args, point_clouds, dim_to_skip, car_size = np.array([4.88, 1.9, 1
     :param point_clouds:
     :param dim_to_skip:
     :param car_size: (length, width, height), defaults to np.array([4.88, 1.9, 1.18])
+
+    Color closer points differently based distance => use varaible c for the removed dim
+    See: https://stackoverflow.com/questions/20105364/how-can-i-make-a-scatter-plot-colored-by-density-in-matplotlib
     """
     dims_to_take = [0, 1, 2]
     dims_to_take.remove((0 if dim_to_skip == 0.1 else dim_to_skip))
@@ -532,7 +548,7 @@ def main():
         make_matching_datasets(dataset_real_original, dataset_sim_original, args)
 
     # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=300)
+    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=800)
 
 if __name__ == "__main__":
     main()
