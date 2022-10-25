@@ -51,7 +51,7 @@ def merge_runs(result_dict, testing_datasets):
         fig2.suptitle(metric)
 
         facecolor = {0: "red", 1: "blue", 2: "dodgerblue", 3: "deepskyblue"}
-        positions = {0: -0.3, 1: -0.1, 2: 0.1, 3: 0.3}
+        positions = {0: -0.3, 1: 0.3}
 
         means_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_means.csv")
         stds_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_stds.csv")
@@ -93,7 +93,7 @@ def merge_runs(result_dict, testing_datasets):
                 if sys.argv[1].split('/')[-1] == "pointrcnn":
                     beanplot_single_list.append(sm.graphics.beanplot(data=np.swapaxes(metric_data_df.values, 0, 1), ax=ax2,
                                                                      labels=[
-                                                                         ["Real", "Sim", "Sim Noise", "Sim downsampled"][
+                                                                         ["Real", "Sim"][
                                                                              training_idx]],
                                                                      plot_opts=plot_opts,
                                                                      positions=[1 + testing_idx + positions[training_idx]],
@@ -119,8 +119,8 @@ def merge_runs(result_dict, testing_datasets):
                 'size': 16,
                 }
 
-        tick_labels = ["Real", "Sim", "Sim Noise", "Sim downsampled"]
-        ticks = list(range(1, 5))
+        tick_labels = ["Real", "Sim"]
+        ticks = list(range(1, 3))
         ax2.set_xticks(ticks, labels=tick_labels)
         for ticklabel, tickcolor in zip(plt.gca().get_xticklabels(), facecolor.values()):
             ticklabel.set_color(tickcolor)
@@ -132,7 +132,7 @@ def merge_runs(result_dict, testing_datasets):
         ax2.set_xlabel("Testing dataset", labelpad=20, fontdict=font)
         ax2.set_ylabel("mAP in %", fontdict=font)
         ax2.grid(axis='y')
-        ax2.set_xlim([0.5, 4.5])
+        ax2.set_xlim([0.5, 2.5])
         [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
 
     relevant_means = means[list(relevant_metrics.values())]
@@ -160,5 +160,6 @@ def main(training_dataset_runs):
 if __name__ == "__main__":
     network_path = sys.argv[1]
     training_dataset_runs = sorted(next(os.walk(network_path))[1])
+    training_dataset_runs = training_dataset_runs[:10]
 
     main(training_dataset_runs)
