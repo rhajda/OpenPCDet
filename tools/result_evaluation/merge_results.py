@@ -45,10 +45,10 @@ def merge_runs(result_dict, testing_datasets):
         os.remove(full_csv)
     for metric_idx, metric in enumerate(metrics):
         fig, ax = plt.subplots(4, 1)
-        fig.suptitle(metric)
+        fig.canvas.manager.set_window_title(metric)
 
         fig2, ax2 = plt.subplots(1, 1)
-        fig2.suptitle(metric)
+        fig2.canvas.manager.set_window_title(metric)
 
         facecolor = {0: "red", 1: "blue", 2: "dodgerblue", 3: "deepskyblue"}
         positions = {0: -0.3, 1: 0.3}
@@ -130,7 +130,7 @@ def merge_runs(result_dict, testing_datasets):
         ax2.legend(ax2.collections[::2], tick_labels, title="Training dataset", loc="lower right")
         ax2.set_ylim([0, y_scales[metric[:6]]])
         ax2.set_xlabel("Testing dataset", labelpad=20, fontdict=font)
-        ax2.set_ylabel("mAP in %", fontdict=font)
+        ax2.set_ylabel("AP in %", fontdict=font)
         ax2.grid(axis='y')
         ax2.set_xlim([0.5, 2.5])
         [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
