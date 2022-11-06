@@ -376,7 +376,31 @@ class IndyDataset(DatasetTemplate):
 
         eval_det_annos = copy.deepcopy(det_annos)
         eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos]
-        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos, eval_det_annos, class_names)
+        orig_len = len(eval_gt_annos)
+
+        # Limit annos to range set in dataset_config
+        range_min = self.eval_range[0]
+        range_max = self.eval_range[1]
+        sq_range_min = range_min ** 2
+        sq_range_max = range_max ** 2
+        eval_det_annos_lim = []
+        eval_gt_annos_lim = []
+
+        for idx, el in enumerate(eval_gt_annos):
+            loc = el["location"][0]
+            x = loc[0]
+            y = loc[1]
+            sq_dist = x ** 2 + y ** 2
+            if sq_range_min <= sq_dist < sq_range_max:
+                eval_gt_annos_lim.append(el)
+                eval_det_annos_lim.append(eval_det_annos[idx])
+
+        print("########################################################################################")
+        print(f"Limit evaluation to ground truth bounding boxes  in range {range_min} to {range_max} m!")
+        print(f"Ground truth detections left: {len(eval_gt_annos_lim)}/{orig_len}")
+        print("########################################################################################")
+
+        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos_lim, eval_det_annos_lim, class_names)
 
         return ap_result_str, ap_dict
 
