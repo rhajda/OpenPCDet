@@ -22,10 +22,7 @@ class AnalyzableDataset:
         """
         box_locations = []
         for info in tqdm(self.infos, 'Load box locations'):
-            box_location = info['annos']['location'][0]
-            # if get_center_coords:
-            #     box_location += info['annos']['dimensions'][0]/2 # It should already be the center
-            box_locations.append(box_location)
+            box_locations.append(info['annos']['location'][0])
         return box_locations
 
 
@@ -69,8 +66,8 @@ class AnalyzableDataset:
 
     def get_point_clouds(self):
         point_clouds = []
-        for i in tqdm(self.indices, 'Load point_clouds'):
-            point_clouds.append(self.dataset.train_set[i]['points'])
+        for info in tqdm(self.infos, 'Load point_clouds'):
+            point_clouds.append(self.dataset.train_set.get_lidar(info['point_cloud']['lidar_idx']))
         return point_clouds
 
     def get_point_cloud_at_index(self, pcd_index: str):

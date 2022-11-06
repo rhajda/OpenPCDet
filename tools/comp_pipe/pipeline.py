@@ -312,14 +312,11 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
     bins_real = binning_based_on_threshold(thresholds, real_sorted)
     bins_sim = binning_based_on_threshold(thresholds, sim_sorted)
 
-    # 2D HISTOGRAM PLOTS GENERAL DATA:
-    # data_plots(cur_bin)
-
     # 2D HISTOGRAM PLOTS CAR:
-    scatter_sideplot = False
+    scatter_sideplot = True
     if scatter_sideplot:
         for i in [0, 0.1, 1, 2]:
-            point_clouds = np.concatenate(bins_real[0]['pcds'])
+            point_clouds = np.concatenate(bins_real[0]['pcds'])[:25000]
             side_plot(args, point_clouds, dim_to_skip=i, reverse=(i==0.1))
 
     # BIRD EYE VIEW PLOTS OF ENV:
@@ -331,7 +328,7 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
         plot_full_pcd(args, point_clouds_r[-1], name="full_pcd_r.png", s=7)
 
     # IOU:
-    make_iou_tables = True
+    make_iou_tables = False
     if make_iou_tables:
         vicinity_slack= 5 # how many successing an preciding point clouds to compare to select the best match.
         iou_distances = []
@@ -384,24 +381,6 @@ def find_closest_sample_index(target_loc, data_set_analyze, i, vicinity_slack):
         if  dist < closest_cloud[0]:
             closest_cloud = dist, sample['point_cloud']['lidar_idx']
     return closest_cloud[1] # return corresponding index
-
-
-# def data_plots(cur_bin): # TODO: NEED TO BE UPDATED FOR NEW DATA FORMATS!
-#     df_normal_a = pd.DataFrame(data = [sum([cur_bin.shape[0] for cur_bin in bins]) for bins in bins_sim],
-#                                columns=['average number of points'])
-#     df_normal_b = pd.DataFrame(data = [xx + 5 for xx in thresholds[:-1]],
-#                                columns=['meter']).assign(group = 'Group B')
-#     score_data = pd.concat([df_normal_a, df_normal_b])
-#     point_sum_per_bin = [(i*5, sum([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
-#     point_avg_per_bin = [(i*5, np.mean([cur_bin.shape[0] for cur_bin in bins])) for i, bins in enumerate(bins_sim)]
-#     bins_points = []
-#     data = pd.DataFrame(data = point_sum_per_bin)
-#     fig = sns.histplot(data=data).get_figure()
-#     fig.axes[0].set_xlabel('total num of points w.r.t. range')
-#     fig.savefig("hist_of_total_point_num.png", bbox_inches='tight')
-#     fig = sns.histplot(data=point_avg_per_bin).get_figure()
-#     fig.axes[0].set_xlabel('average number of points w.r.t. range')
-#     fig.savefig("hist_of_avg_point_num.png", bbox_inches='tight')
 
 def side_plot_car_3d_for_range(args, bins: List[Dict], alphas: List[int], num_points: List[int], data_type: str,
                                use_color_gradient: bool=True, car_size = np.array([4.88, 1.9, 1.18])) -> None:
@@ -490,16 +469,19 @@ def side_plot(args, point_clouds, dim_to_skip, car_size = np.array([4.88, 1.9, 1
     points = point_clouds[:, dims_to_take[0]], point_clouds[:, dims_to_take[1]]
     car_size = car_size.astype(np.int32)
     fig_size = 9, int(12 * (car_size[dims_to_take[1]] / car_size[dims_to_take[0]]))
+    if dim_to_skip in [0.1, 0]:
+        fig_size = 5.8, 3.2
     fig = plt.figure(figsize=fig_size)
     ax = fig.add_subplot()
-    ax.set_xlabel('meter')
+    ax.set_xlabel('x [m]')
+    ax.set_ylabel('y [m]')
     norm_c = (point_clouds[:, dim_to_skip] - point_clouds[:, dim_to_skip].min())
     norm_c = norm_c / norm_c.max()
     norm_c = norm_c[::-1] if not reverse else norm_c
     alpha = (norm_c[::-1] + 0.1) * 0.3 if dim_to_skip == 0 else 0.3
     s = alpha *2* 24 if dim_to_skip == 0 else 6
     ax.scatter(*points, c=norm_c, alpha=alpha, s=s, cmap = 'viridis') # c=1 : black=Front , c=0 : white
-    plt.savefig(args.output_dir / f"car_angle_plot_real_skipdim{dim_to_skip}_{point_clouds.shape[0]}points_{'R'*reverse}.png", dpi=300)
+    plt.savefig(args.output_dir / f"car_angle_plot_real_skipdim{dim_to_skip}_{point_clouds.shape[0]}points_{'R'*reverse}.png", dpi=300, bbox_inches='tight')
 
 def binning_based_on_threshold(thresholds: List[int], sorted_values: List[Tuple[np.array,np.array]]) -> List[Dict]:
     bins = [{"pcds":[], "th":[], "loc":[], "count":[]} for _ in range(len(thresholds)-1)]
@@ -548,7 +530,7 @@ def main():
         make_matching_datasets(dataset_real_original, dataset_sim_original, args)
 
     # analyze, compare and visualize *num* samples of 1-to-1 correspondences:
-    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=800)
+    analyze_data_pairs(dataset_real, dataset_sim, args, cfg, num=200)
 
 if __name__ == "__main__":
     main()

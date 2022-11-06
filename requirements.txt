@@ -10,3 +10,5 @@ tqdm
 torchvision
 SharedArray
 tabulate
+pyvista
+seaborn
