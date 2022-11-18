@@ -20,19 +20,27 @@ def read_csv(training_dataset_run, testing_dataset):
                                     "results.csv"), sep=",", index_col="epoch_id")
 
 
-def create_result_dict(training_dataset_runs):
+def create_result_dict(training_dataset_runs, ranges):
     result_dict = {}
     testing_datasets = []
+    training_datasets = []
     for training_dataset_run in training_dataset_runs:
-        testing_datasets.append(training_dataset_run[:-2])
+        training_datasets.append(training_dataset_run[:-2])
+        if ranges:
+            testing_datasets.append(training_dataset_run[:-2] + "_" + str(ranges))
+        else:
+            testing_datasets.append(training_dataset_run[:-2])
+
+    training_datasets = sorted(list(set(training_datasets)))
     testing_datasets = sorted(list(set(testing_datasets)))
+
     for training_dataset_run in training_dataset_runs:
         for testing_dataset in testing_datasets:
             result_dict[f"{testing_dataset}_{training_dataset_run}"] = read_csv(training_dataset_run, testing_dataset)
-    return result_dict, testing_datasets
+    return result_dict, testing_datasets, training_datasets
 
 
-def merge_runs(result_dict, testing_datasets):
+def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
     metrics = ["AP_Car_3d/0.5_R11", "AP_Car_3d/0.5_R40", "AP_Car_3d/0.7_R11", "AP_Car_3d/0.7_R40", "recall/rcnn_0.3",
                "recall/rcnn_0.5", "recall/rcnn_0.7", "recall/roi_0.3", "recall/roi_0.5", "recall/roi_0.7",
                "avg_pred_obj"]
@@ -40,21 +48,28 @@ def merge_runs(result_dict, testing_datasets):
     y_scales = {"AP_Car": 100, "recall": 100, "avg_pr": 1}
     means = np.zeros((len(metrics), len(testing_datasets), len(testing_datasets)))
     stds = np.zeros((len(metrics), len(testing_datasets), len(testing_datasets)))
-    full_csv = os.path.join(sys.argv[1], f"{sys.argv[1].split('/')[-1]}.csv")
+    if ranges:
+        full_csv = os.path.join(sys.argv[1], f"{sys.argv[1].split('/')[-1]}_{str(ranges)}.csv")
+    else:
+        full_csv = os.path.join(sys.argv[1], f"{sys.argv[1].split('/')[-1]}.csv")
     if os.path.isfile(full_csv):
         os.remove(full_csv)
     for metric_idx, metric in enumerate(metrics):
-        fig, ax = plt.subplots(4, 1)
+        fig, ax = plt.subplots(4, 1, figsize=(7.5, 9))
         fig.canvas.manager.set_window_title(metric)
 
-        fig2, ax2 = plt.subplots(1, 1)
+        fig2, ax2 = plt.subplots(1, 1, figsize=(7.5, 9))
         fig2.canvas.manager.set_window_title(metric)
 
         facecolor = {0: "red", 1: "blue", 2: "dodgerblue", 3: "deepskyblue"}
         positions = {0: -0.3, 1: 0.3}
 
-        means_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_means.csv")
-        stds_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_stds.csv")
+        if ranges:
+            means_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_means_{str(ranges)}.csv")
+            stds_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_stds_{str(ranges)}.csv")
+        else:
+            means_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_means.csv")
+            stds_csv = os.path.join(sys.argv[1], f"{metric.replace('/', '_').replace('.', '_')}_stds.csv")
         if os.path.isfile(means_csv):
             os.remove(means_csv)
         if os.path.isfile(stds_csv):
@@ -66,7 +81,7 @@ def merge_runs(result_dict, testing_datasets):
         for testing_idx, testing_dataset in enumerate(testing_datasets):
             boxplot_list = []
             beanplot_single_list = []
-            for training_idx, training_dataset in enumerate(testing_datasets):
+            for training_idx, training_dataset in enumerate(training_datasets):
                 result_dict_similar_runs = {k: v for k, v in result_dict.items() if
                                             f"{testing_dataset}_{training_dataset}" in k}
                 metric_data_df = pd.concat([df.loc[75:, metric] for df in result_dict_similar_runs.values()]
@@ -135,6 +150,13 @@ def merge_runs(result_dict, testing_datasets):
         ax2.set_xlim([0.5, 2.5])
         [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
 
+        if ranges:
+            fig_name = f"{metric.replace('/', '_').replace('.', '_')}_{str(ranges)}.pdf"
+        else:
+            fig_name = f"{metric.replace('/', '_').replace('.', '_')}.pdf"
+        fig_path = os.path.join(sys.argv[1], fig_name)
+        fig2.savefig(fig_path)
+
     relevant_means = means[list(relevant_metrics.values())]
     relevant_stds = stds[list(relevant_metrics.values())]
     with open(full_csv, "a") as csv_file:
@@ -151,15 +173,16 @@ def merge_runs(result_dict, testing_datasets):
     print()
 
 
-def main(training_dataset_runs):
-    result_dict, testing_datasets = create_result_dict(training_dataset_runs)
-    merge_runs(result_dict, testing_datasets)
+def main(training_dataset_runs, ranges):
+    result_dict, testing_datasets, training_datasets = create_result_dict(training_dataset_runs, ranges)
+    merge_runs(result_dict, testing_datasets, training_datasets, ranges)
     print()
 
 
 if __name__ == "__main__":
     network_path = sys.argv[1]
+    ranges = ""  # "", "000_033", "033_066", "066_100"
     training_dataset_runs = sorted(next(os.walk(network_path))[1])
     training_dataset_runs = training_dataset_runs[:10]
 
-    main(training_dataset_runs)
+    main(training_dataset_runs, ranges)
