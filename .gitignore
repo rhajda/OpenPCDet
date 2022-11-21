@@ -15,6 +15,7 @@ version.py
 .Xauthority
 .vscode/
 *.png
+*.pdf
 data_local/
 full_mount/
 output_2/
