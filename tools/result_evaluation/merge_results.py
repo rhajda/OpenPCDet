@@ -9,9 +9,11 @@ from matplotlib import rc
 import statsmodels.api as sm
 from matplotlib.text import Text
 
-plt.rcParams["font.size"] = "16"
+plt.rcParams["font.size"] = "28"
 rc('axes', linewidth=2)
-rc('font', weight='bold', family='serif')
+rc('font',
+   #weight='bold',
+   family='Times New Roman')
 plt.show()
 
 
@@ -40,7 +42,7 @@ def create_result_dict(training_dataset_runs, ranges):
     return result_dict, testing_datasets, training_datasets
 
 
-def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
+def merge_runs(result_dict, testing_datasets, training_datasets, ranges, plot):
     metrics = ["AP_Car_3d/0.5_R11", "AP_Car_3d/0.5_R40", "AP_Car_3d/0.7_R11", "AP_Car_3d/0.7_R40", "recall/rcnn_0.3",
                "recall/rcnn_0.5", "recall/rcnn_0.7", "recall/roi_0.3", "recall/roi_0.5", "recall/roi_0.7",
                "avg_pred_obj"]
@@ -59,6 +61,7 @@ def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
         fig.canvas.manager.set_window_title(metric)
 
         fig2, ax2 = plt.subplots(1, 1, figsize=(7.5, 9))
+        ax2.set_position((0.15, 0.125, 0.8, 0.85))
         fig2.canvas.manager.set_window_title(metric)
 
         facecolor = {0: "red", 1: "blue", 2: "dodgerblue", 3: "deepskyblue"}
@@ -128,10 +131,10 @@ def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
                 csv_writer.writerow(stds[metric_idx, testing_idx, :])
 
         # plot boxplots in single plot for each of the 11 metrics [4(training)*4(testing) boxes per plot]
-        font = {'family': 'serif',
+        font = {'family': 'Times New Roman',
                 'color': 'black',
-                'weight': 'bold',
-                'size': 16,
+                #'weight': 'bold',
+                'size': 28,
                 }
 
         tick_labels = ["Real", "Sim"]
@@ -142,10 +145,10 @@ def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
 
         # ax2.legend([boxplot["boxes"][0] for boxplot in beanplot_single_list], tick_labela,
         #                       title="Training dataset")
-        ax2.legend(ax2.collections[::2], tick_labels, title="Training dataset", loc="lower right")
+        ax2.legend(ax2.collections[::2], tick_labels, title="Training\n data set", loc="lower right")
         ax2.set_ylim([0, y_scales[metric[:6]]])
-        ax2.set_xlabel("Testing dataset", labelpad=20, fontdict=font)
-        ax2.set_ylabel("AP in %", fontdict=font)
+        ax2.set_xlabel("Testing data set", labelpad=20, fontdict=font)
+        ax2.set_ylabel("3D AP (0.7) in %", fontdict=font)
         ax2.grid(axis='y')
         ax2.set_xlim([0.5, 2.5])
         [ax2.axvline(x, color='k', linestyle='--') for x in [1.5, 2.5, 3.5]]
@@ -169,20 +172,22 @@ def merge_runs(result_dict, testing_datasets, training_datasets, ranges):
                 csv_writer.writerow([f"{round(el[0], 2)} ({round(el[1], 2)})" for el in
                                      zip(relevant_means[:, testing_idx, training_idx],
                                          relevant_stds[:, testing_idx, training_idx])])
-    plt.show()
-    print()
+    if plot:
+        plt.show()
 
 
-def main(training_dataset_runs, ranges):
+def main(training_dataset_runs, ranges, plot):
     result_dict, testing_datasets, training_datasets = create_result_dict(training_dataset_runs, ranges)
-    merge_runs(result_dict, testing_datasets, training_datasets, ranges)
+    merge_runs(result_dict, testing_datasets, training_datasets, ranges, plot)
     print()
 
 
 if __name__ == "__main__":
     network_path = sys.argv[1]
-    ranges = ""  # "", "000_033", "033_066", "066_100"
-    training_dataset_runs = sorted(next(os.walk(network_path))[1])
-    training_dataset_runs = training_dataset_runs[:10]
+    plot = False
 
-    main(training_dataset_runs, ranges)
+    for ranges in ["", "000_033", "033_066", "066_100"]:  # "", "000_033", "033_066", "066_100"
+        training_dataset_runs = sorted(next(os.walk(network_path))[1])
+        training_dataset_runs = training_dataset_runs[:10]
+
+        main(training_dataset_runs, ranges, plot)
