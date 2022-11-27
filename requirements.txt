@@ -12,3 +12,4 @@ SharedArray
 tabulate
 pyvista
 seaborn
+cmasher

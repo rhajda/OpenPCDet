@@ -19,3 +19,6 @@ version.py
 data_local/
 full_mount/
 output_2/
+*.o
+build/
+*.py~

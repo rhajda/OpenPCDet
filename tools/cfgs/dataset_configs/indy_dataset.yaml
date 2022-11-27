@@ -2,7 +2,7 @@ DATASET: 'IndyDataset'
 DATA_PATH: '../data/indy'
 
 DATA_PATH_REAL: '../full_mount/real'
-DATA_PATH_SIM: '../full_mount/sim_no_noise_downsampled'  #'../full_mount/sim_noise_002' # '../full_mount/sim_no_noise'
+DATA_PATH_SIM:   '../full_mount/sim_no_noise_downsampled' #'../full_mount/sim_noise_002' #'../full_mount/sim_no_noise' # '../full_mount/sim_noise_002'
 
 POINT_CLOUD_RANGE: [-100, -100, -0.5, 100, 100, 9.5]
 EVAL_RANGE: [0, 100]

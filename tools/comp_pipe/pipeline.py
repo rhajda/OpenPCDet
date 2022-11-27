@@ -17,23 +17,51 @@ import subprocess
 from tqdm import tqdm
 from logging import Logger
 import csv
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 import seaborn as sns
 import pyvista as pv  # Install with "vtk==8.1.2"!!
-import pandas as pd
+import random
+import cmasher as cmr
 
 from pcdet.config import cfg, cfg_from_list, cfg_from_yaml_file, log_config_to_file
 from pcdet.datasets import build_dataloader
 from pcdet.utils import common_utils
 from tools.comp_pipe.analyzable_dataset import AnalyzableDataset
-import random
-random.seed(1234)
+import scienceplots
+
+import matplotlib
+matplotlib.font_manager._load_fontmanager(try_read_cache=False)
+
+plt.style.use(["science", "no-latex"])
+
+import numpy as np # TODO: https://stackoverflow.com/a/64487277/9621080
+# TODO: 3D plots farben umtauschen!
+
+
+def set_random_seed(seed):
+    # set fixed determinism seed
+    random.seed(seed)
+    np.random.seed(seed)
+    common_utils.set_random_seed(seed)
+
+set_random_seed(123)
 
 ZERO_ARRAY = np.zeros((1, 3))
-REAL_COLOR_R = "#FF7F7F" # (255, 127, 127)
-SIM_COLOR_B = "#7F7FFF"  # (127, 127, 255)  # BLUE
+REAL_COLOR_R = '#BE0000' # "#FF7F7F" # (255, 127, 127)
+SIM_COLOR_B = '#3182BD' # "#7F7FFF"  # (127, 127, 255)  # BLUE
+AXIS_LABEL_PADDING = 20
+TICK_LABEL_PADDING = 10
+LABEL_SIZE = 18
+
+def shorten_cmap(cmap, x=25):
+    cmap.colors[:x] = np.repeat([cmap.colors[x]], x, axis=0)
+    # i_size = len(cmap.colors)
+    # cmap._i_bad = i_size - x + 2
+    # cmap._i_over = i_size - x + 1
+    # cmap._i_under = i_size - x
 
 
 def calc_pcd_pairwise_volume_iou(point_cloud_1: List[np.array],
@@ -224,10 +252,10 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict,
 
     args.logger.info(
         f"Difference of samples: these are used in training with real but not with sim \
-(idx multiplied by 5 := 'frame_id'): \n{diff_real_to_sim}"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              )
+(idx multiplied by 5 := 'frame_id'): \n{diff_real_to_sim}"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                )
     args.logger.info(
         f"Difference of samples: these are used in training with sim but not with real \
-(idx multiplied by 5 := 'frame_id'): \n{diff_sim_to_real}"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              )
+(idx multiplied by 5 := 'frame_id'): \n{diff_sim_to_real}"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                )
     args.logger.info(
         f"If both sets above are not empty we train with different training-set (correlation affected)."
     )
@@ -285,7 +313,7 @@ def make_matching_datasets(dataset_real: dict, dataset_sim: dict,
 
     args.logger.info(
         "Check how many of the training samples from the given datasets contain gt_obj_boxes and \
-thus will be used for training with the current configuration.\n\n"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  + tabulate(
+thus will be used for training with the current configuration.\n\n"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         + tabulate(
             table,
             headers=['Attribute', 'dataset_real_train', 'dataset_sim_train'],
             tablefmt='orgtbl') + "\n")
@@ -444,9 +472,17 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
 
     # 2D HISTOGRAM PLOTS CAR:
     scatter_sideplot = True
+    num_points = 25000
     if scatter_sideplot:
         for i in [0, 0.1, 1, 2]:
+            random.shuffle(bins_real[0]['pcds'])
             point_clouds = np.concatenate(bins_real[0]['pcds'])[:25000]
+            # index = np.random.choice(point_clouds.shape[0], 25000, replace=False)
+            # # point_clouds = point_clouds[index]
+            # point_clouds = np.concatenate(
+            #     (point_clouds[:num_points // 2],  point_clouds[-num_points // 2 -1:-1]),
+            #     axis=0)
+            # point_clouds = np.concatenate(bins_real[0]['pcds'])[:25000]
             side_plot(args, point_clouds, dim_to_skip=i, reverse=(i == 0.1))
 
     # BIRD EYE VIEW PLOTS OF ENV:
@@ -457,13 +493,23 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
         plot_full_pcd(args,
                       point_clouds_s[-1],
                       name="full_pcd_s.pdf",
-                      s=7,
+                      s=2,
                       color=SIM_COLOR_B)
         plot_full_pcd(args,
                       point_clouds_r[-1],
                       name="full_pcd_r.pdf",
-                      s=7,
+                      s=2,
                       color=REAL_COLOR_R)
+
+    point_cloud_range = [int(x/4) for x in cfg.DATA_CONFIG["POINT_CLOUD_RANGE"]]
+    # Plot 1: DATA DISTRIBUTIONS!
+    data_distr = True
+    if data_distr:
+        x = np.array(real_box_locations)[:, 0]
+        y = np.array(real_box_locations)[:, 1]
+        plot = sns.jointplot(x=x, y=y, color=REAL_COLOR_R)
+        plot.set_axis_labels('x [m]', 'y [m]')
+        plot.fig.savefig(args.output_dir / 'locations_plot_real.pdf', bbox_inches='tight')
 
     # IOU:
     make_iou_tables = False
@@ -497,27 +543,30 @@ def analyze_data_pairs(dataset_real, dataset_sim, args=None, cfg=None, num=20):
 
     # Plot 2: HOW CARS LOOK TO THE NETWORK:
     plot_car_3d = True
+    currently_noise = False
+    currently_downsamp = True
     if plot_car_3d:
         num_points = [9731, 20000]  # This looks the best
         alphas = [0.85]  # This looks the best
         # REAL:
         try:
             side_plot_car_3d_for_range(args,
-                                       bins=bins_real,
-                                       alphas=alphas,
-                                       num_points=num_points,
-                                       data_type="real")
+                                        bins=bins_real,
+                                        alphas=alphas,
+                                        num_points=num_points,
+                                        data_type="real")
         except ValueError:
             print("WARNING: not enough points to available.")
         # SIMULATED:
         try:
             side_plot_car_3d_for_range(args,
-                                       bins=bins_sim,
-                                       alphas=alphas,
-                                       num_points=num_points,
-                                       data_type="sim")
+                                        bins=bins_sim,
+                                        alphas=alphas,
+                                        num_points=[int(x * 0.8) for x in num_points] if currently_downsamp else num_points,
+                                        data_type="sim" + currently_noise * "_noise"+ currently_downsamp * "_downsample")
         except ValueError:
             print("WARNING: not enough points to available.")
+
 
     args.logger.info(
         '********************** End comparison of data pairs **********************'
@@ -593,40 +642,79 @@ def side_plot_car_3d(
         alpha = np.ones_like(norm_c) * alpha
         alpha[np.argmax(norm_c)] = 0.0
     if data_type == "real":
-        cmap = 'viridis'
+        cmap = matplotlib.cm.get_cmap("rocket") # == None
     elif data_type == "sim":
-        cmap = None
+        cmap = cmr.cosmic # 'viridis'
+        cmap = cmr.sapphire
+        cmap = cmr.ocean
+        cmap = matplotlib.cm.get_cmap("viridis")
     elif data_type == "sim_noise":
-        cmap = 'inferno'
+        cmap = cmr.cosmic # 'inferno'
+    elif data_type == "sim_downsample":
+        cmap = cmr.ocean # 'plasma'
+
     else:
         raise ValueError(
-            "'data_type' needs to be in ['real', 'sim', 'sim_noise']!")
+            "'data_type' needs to be in ['real', 'sim', 'sim_downsample', 'sim_noise']!")
 
     points_axis_split = points[:, 0], points[:, 1], points[:, 2]
 
-    fig = plt.figure(figsize=(6, 6))
+    fig = plt.figure(figsize=(9, 9))
     ax = fig.add_subplot(projection='3d')
-    ax.set_xlabel('x [m]')
-    ax.set_ylabel('y [m]')
-    ax.set_zlabel('z [m]')
-    ax.set_xlim([
-        -car_size[0] / 2 - car_size[0] * 0.15,
-        car_size[0] / 2 + car_size[0] * 0.15
-    ])
-    ax.set_ylim([
-        -car_size[1] / 2 - car_size[1] * 0.15,
-        car_size[1] / 2 + car_size[1] * 0.15
-    ])
-    ax.set_zlim([-car_size[2] / 2, car_size[2] / 2 + car_size[2] * 0.2])
+
+    xs, ys, zs = points_axis_split
+    # ax.set_box_aspect((1, 1, 1))
+    ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
+
+    # SET TICK LOCATION:
+    ax.xaxis.set_major_locator(plt.MaxNLocator(10))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(10))
+    ax.zaxis.set_major_locator(plt.MaxNLocator(10))
+    ax.xaxis.set_minor_locator(plt.MaxNLocator(1)) # the minor ticks are the ones without label
+    ax.yaxis.set_minor_locator(plt.MaxNLocator(1))
+    ax.zaxis.set_minor_locator(plt.MaxNLocator(1))
+    # ax.xaxis.set_tick_params(which='minor', bottom=False)
+    # ax.yaxis.set_tick_params(which='minor', bottom=False)
+    # ax.zaxis.set_tick_params(which='minor', bottom=False)
+
+    ax.tick_params(axis='both', which='major', labelsize=LABEL_SIZE, pad=TICK_LABEL_PADDING)
+    ax.tick_params(axis='both', which='minor', labelsize=LABEL_SIZE, pad=TICK_LABEL_PADDING)
+
+    ax.set_xlabel('x [m]', labelpad=AXIS_LABEL_PADDING, fontsize=LABEL_SIZE)
+    ax.set_ylabel('y [m]', labelpad=AXIS_LABEL_PADDING, fontsize=LABEL_SIZE)
+    ax.set_zlabel('z [m]', labelpad=AXIS_LABEL_PADDING, fontsize=LABEL_SIZE)
+
+    xlim = {'start': -car_size[0] / 2 - car_size[0] * 0.15, 'end': car_size[0] / 2 + car_size[0] * 0.15}
+    ylim = {'start': -car_size[1] / 2 - car_size[1] * 0.15, 'end': car_size[1] / 2 + car_size[1] * 0.15}
+    zlim = {'start': -car_size[2] / 2, 'end': car_size[2] / 2 + car_size[2] * 0.2}
+
+    # SET TICK LABEL LOCATION:
+    # start, end = ax.get_xlim()
+    # ax.xaxis.set_ticks(np.arange(start, end, stepsize))
+    ax.xaxis.set_ticks([-3, -2, -1, 0, 1, 2, 3])
+    ax.yaxis.set_ticks([-1, -0.5, 0, 0.5, 1])
+    ax.zaxis.set_ticks([-0.4, 0, 0.4, 0.8])
+
+    ax.set_xlim(xlim.values())
+    ax.set_ylim(ylim.values())
+    ax.set_zlim(zlim.values())
+
     ax.scatter(*points_axis_split, c=norm_c, alpha=alpha, cmap=cmap)
     plt.savefig(args.output_dir / name, bbox_inches='tight', dpi=300)
 
 
-def plot_full_pcd(args, points, name="full_pcd.pdf", s=5, color=None):
+def plot_full_pcd(args, points, name="full_pcd.pdf", s=4, color=None):
     points_axis_split = points[:, 0], points[:, 1]
-    fig = plt.figure(figsize=(6, 6))
+    fig = plt.figure(figsize=(9, 9))
     ax = fig.add_subplot()
-    ax.set_xlabel('meter')
+    ax.set_aspect('equal')
+
+    ax.tick_params(axis='both', which='major', labelsize=LABEL_SIZE, pad=TICK_LABEL_PADDING)
+    ax.tick_params(axis='both', which='minor', labelsize=LABEL_SIZE, pad=TICK_LABEL_PADDING)
+
+    ax.set_xlabel('x [m]', labelpad=AXIS_LABEL_PADDING, fontsize=LABEL_SIZE)
+    ax.set_ylabel('y [m]', labelpad=AXIS_LABEL_PADDING, fontsize=LABEL_SIZE)
+
     ax.set_xlim([-100, 100])
     ax.set_ylim([-50, 50])
     ax.scatter(*points_axis_split, s=s, color=color)
@@ -657,24 +745,33 @@ def side_plot(args,
                                                        dim_to_skip].argsort()]
     points = point_clouds[:, dims_to_take[0]], point_clouds[:, dims_to_take[1]]
     car_size = car_size.astype(np.int32)
-    fig_size = 9 * 0.8, int(
-        12 * (car_size[dims_to_take[1]] / car_size[dims_to_take[0]])) * 0.8
+    fig_size = 9, int(
+        12 * (car_size[dims_to_take[1]] / car_size[dims_to_take[0]]))
     if dim_to_skip in [0.1, 0]:
-        fig_size = 5.8 * 0.8, 3.2 * 0.8
+        fig_size = 5.8, 3.2
     fig = plt.figure(figsize=fig_size)
     ax = fig.add_subplot()
+    ax.set_aspect('equal')
     axis_labels = ['x [m]', 'y [m]', 'z [m]']
     axis_labels = axis_labels[:dim_to_skip] + axis_labels[dim_to_skip+1:]
-    ax.set_xlabel(axis_labels[0])
-    ax.set_ylabel(axis_labels[1])
+
+    # ax.tick_params(axis='both', which='major', labelsize=LABEL_SIZE) # DONT USE HERE!
+    # ax.tick_params(axis='both', which='minor', labelsize=LABEL_SIZE)
+
+    ax.set_xlabel(axis_labels[0], labelpad=AXIS_LABEL_PADDING) # TODO
+    ax.set_ylabel(axis_labels[1], labelpad=AXIS_LABEL_PADDING)
+
     norm_c = (point_clouds[:, dim_to_skip] -
               point_clouds[:, dim_to_skip].min())
     norm_c = norm_c / norm_c.max()
     norm_c = norm_c[::-1] if not reverse else norm_c
     alpha = (norm_c[::-1] + 0.1) * 0.3 if dim_to_skip == 0 else 0.3
     s = alpha * 2 * 24 if dim_to_skip == 0 else 6
-    ax.scatter(*points, c=norm_c, alpha=alpha, s=s,
-               cmap='viridis')  # c=1 : black=Front , c=0 : white
+
+    cmap = matplotlib.cm.get_cmap("rocket")
+    cmap = shorten_cmap(cmap)
+
+    ax.scatter(*points, c=norm_c, alpha=alpha, s=s, cmap=cmap)  # c=1 : black=Front , c=0 : white
     plt.savefig(
         args.output_dir /
         f"car_angle_plot_real_skipdim{dim_to_skip}_{point_clouds.shape[0]}points_{'R'*reverse}.pdf",
@@ -707,9 +804,6 @@ def main():
         str(root /
             'tools'))  # directory change makes path handling easier later on
     args, cfg = parse_config()
-
-    if args.fix_random_seed:
-        common_utils.set_random_seed(666)
 
     # Set up logging and output directories
     args.output_dir = cfg.ROOT_DIR / 'output' / cfg.EXP_GROUP_PATH / cfg.TAG / args.extra_tag
