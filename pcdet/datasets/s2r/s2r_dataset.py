@@ -12,7 +12,7 @@ from ...utils import box_utils, calibration_kitti, common_utils, object3d_kitti
 from ..dataset import DatasetTemplate
 
 
-class S2rDataser(DatasetTemplate):
+class S2rDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, remove_missing_gt=False,
                  eval_mode=False, test=False, tb_log=None):
         """
@@ -30,7 +30,7 @@ class S2rDataser(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         self.tb_log = tb_log
@@ -92,7 +92,7 @@ class S2rDataser(DatasetTemplate):
         self.split = split
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         if self.logger is not None:
@@ -472,7 +472,7 @@ class S2rDataser(DatasetTemplate):
 
 
 def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
-    dataset = S2rDataser(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
+    dataset = S2rDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
     train_split, val_split, test_split = 'train', 'val', 'test'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
@@ -493,11 +493,11 @@ def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
         pickle.dump(kitti_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
 
-    dataset.set_split(test_split)
-    kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
-    with open(test_filename, 'wb') as f:
-        pickle.dump(kitti_infos_test, f)
-    print('Kitti info test file is saved to %s' % test_filename)
+    # dataset.set_split(test_split)
+    # kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    # with open(test_filename, 'wb') as f:
+    #     pickle.dump(kitti_infos_test, f)
+    # print('Kitti info test file is saved to %s' % test_filename)
 
     print('---------------Start create groundtruth database for data augmentation---------------')
     dataset.set_split(train_split)

@@ -14,6 +14,7 @@ from .waymo.waymo_dataset import WaymoDataset
 from .pandaset.pandaset_dataset import PandasetDataset
 from .lyft.lyft_dataset import LyftDataset
 from .indy.indy_dataset import IndyDataset
+from .s2r.s2r_dataset import S2rDataset
 
 
 __all__ = {
@@ -23,7 +24,8 @@ __all__ = {
     'WaymoDataset': WaymoDataset,
     'PandasetDataset': PandasetDataset,
     'LyftDataset': LyftDataset,
-    'IndyDataset': IndyDataset
+    'IndyDataset': IndyDataset,
+    'S2rDataset': S2rDataset
 }
 
 
