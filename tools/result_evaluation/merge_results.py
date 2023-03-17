@@ -169,12 +169,18 @@ def merge_runs(result_dict, testing_datasets, training_datasets, ranges, plot, s
 
         # ax2.legend([boxplot["boxes"][0] for boxplot in beanplot_single_list], tick_labela,
         #                       title="Training dataset")
-        if sim_only:
-            ax2.legend(ax2.collections[::2], tick_labels, title="Training\n data set", loc="lower right", frameon=True)
+
+        if ranges == "066_100":
+            legend_loc = "upper left"
         else:
-            ax2.legend(ax2.collections[::2], tick_labels, title="Training data set", loc="lower right", frameon=True)
+            legend_loc = "lower right"
+
+        if sim_only:
+            ax2.legend(ax2.collections[::2], tick_labels, title="Training\n dataset", loc=legend_loc, frameon=True)
+        else:
+            ax2.legend(ax2.collections[::2], tick_labels, title="Training dataset", loc=legend_loc, frameon=True)
         ax2.set_ylim([0, y_scales[metric[:6]]])
-        ax2.set_xlabel("Testing data set", labelpad=15, fontdict=font)
+        ax2.set_xlabel("Testing dataset", labelpad=15, fontdict=font)
         ax2.set_ylabel("3D AP (0.7) in %", fontdict=font)
         ax2.grid(axis='y')
         if sim_only:
@@ -218,7 +224,7 @@ def main(training_dataset_runs, ranges, plot, sim_only):
 if __name__ == "__main__":
     network_path = sys.argv[1]
     plot = False  # activate or suppress plot
-    sim_only = True  # True: real-sim, False: real-sim-sim_noise-sim_downsampled
+    sim_only = False  # True: real-sim, False: real-sim-sim_noise-sim_downsampled
 
     if sim_only:
         range_secs = ["", "000_033", "033_066", "066_100"]
