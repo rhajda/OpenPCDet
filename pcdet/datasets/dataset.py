@@ -168,7 +168,7 @@ class DatasetTemplate(torch_data.Dataset):
 
         if (self.eval_mode or self.training) and len(data_dict['gt_boxes']) == 0 and self.missing_gt_reselect:
             new_index = np.random.randint(self.__len__())
-            print("Reselect due to excluded gt performed!")
+            #print("Reselect due to excluded gt performed!")
             return self.__getitem__(new_index)
 
         data_dict.pop('gt_names', None)
