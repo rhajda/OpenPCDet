@@ -167,11 +167,12 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
             ret_dict, val_loss_list = eval_utils.eval_one_epoch(
                 cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
-                result_dir=cur_result_dir, get_val_loss=True
+                result_dir=cur_result_dir, get_val_loss=False
             )
-            val_losses = [loss[0].item() for loss in val_loss_list]
-            val_loss_avg = sum(val_losses) / len(val_losses)
-            tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
+            if len(val_loss_list) > 0:
+                val_losses = [loss[0].item() for loss in val_loss_list]
+                val_loss_avg = sum(val_losses) / len(val_losses)
+                tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
             result_str = ""
             for key in sorted(ret_dict):
                 tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
@@ -194,9 +195,10 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             else:
                 # results.pkl empty, no predictions
                 avg_pred_obj = 0.0
-            with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
-                csv_writer = csv.writer(f)
-                csv_writer.writerow([cur_epoch, val_loss_avg, result_str, avg_pred_obj])
+            if len(val_loss_list) > 0:
+                with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+                    csv_writer = csv.writer(f)
+                    csv_writer.writerow([cur_epoch, val_loss_avg, result_str, avg_pred_obj])
 
 
 def model_state_to_cpu(model_state):
