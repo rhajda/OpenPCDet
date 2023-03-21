@@ -198,6 +198,8 @@ class S2rDataset(DatasetTemplate):
 
             if has_label:
                 obj_list = self.get_label(sample_idx)
+                if len(obj_list) == 0:
+                    return {}
                 annotations = {}
                 annotations['name'] = np.array([obj.cls_type for obj in obj_list])
                 annotations['truncated'] = np.array([obj.truncation for obj in obj_list])
@@ -258,6 +260,8 @@ class S2rDataset(DatasetTemplate):
         for k in range(len(infos)):
             print('gt_database sample: %d/%d' % (k + 1, len(infos)))
             info = infos[k]
+            if info == {}:
+                continue
             sample_idx = info['point_cloud']['lidar_idx']
             points = self.get_lidar(sample_idx)
             annos = info['annos']
@@ -419,6 +423,8 @@ class S2rDataset(DatasetTemplate):
             index = index % len(self.kitti_infos)
 
         info = copy.deepcopy(self.kitti_infos[index])
+        if info == {}:
+            self.__getitem__(index + 1)
 
         sample_idx = info['point_cloud']['lidar_idx']
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
@@ -471,7 +477,7 @@ class S2rDataset(DatasetTemplate):
         return data_dict
 
 
-def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=4):
+def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=16):
     dataset = S2rDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
     train_split, val_split, test_split = 'train', 'val', 'test'
 
