@@ -30,7 +30,7 @@ class S2rDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_KITTI' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         self.tb_log = tb_log
@@ -92,7 +92,7 @@ class S2rDataset(DatasetTemplate):
         self.split = split
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_KITTI' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         if self.logger is not None:
