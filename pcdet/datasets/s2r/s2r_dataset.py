@@ -423,10 +423,12 @@ class S2rDataset(DatasetTemplate):
             index = index % len(self.kitti_infos)
 
         info = copy.deepcopy(self.kitti_infos[index])
-        if info == {}:
-            self.__getitem__(index + 1)
 
-        sample_idx = info['point_cloud']['lidar_idx']
+        try:
+            sample_idx = info['point_cloud']['lidar_idx']
+        except KeyError:
+            self.__getitem__(index + 1)
+            return
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
 
         input_dict = {
