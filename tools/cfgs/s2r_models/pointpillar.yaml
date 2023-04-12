@@ -2,7 +2,7 @@ CLASS_NAMES: ['Car']
 
 DATA_CONFIG: 
     _BASE_CONFIG_: cfgs/dataset_configs/s2r_dataset.yaml
-    POINT_CLOUD_RANGE: [-100, -100, -0.5, 100, 100, 9.5]
+    POINT_CLOUD_RANGE: [0, -39.68, -3, 69.12, 39.68, 1]
     DATA_PROCESSOR:
         - NAME: mask_points_and_boxes_outside_range
           REMOVE_OUTSIDE_BOXES: True
@@ -15,7 +15,7 @@ DATA_CONFIG:
           }
 
         - NAME: transform_points_to_voxels
-          VOXEL_SIZE: [0.2, 0.2, 10]
+          VOXEL_SIZE: [0.16, 0.16, 4]
           MAX_POINTS_PER_VOXEL: 32
           MAX_NUMBER_OF_VOXELS: {
             'train': 16000,
@@ -57,19 +57,19 @@ MODEL:
         WITH_DISTANCE: False
         USE_ABSLOTE_XYZ: True
         USE_NORM: True
-        NUM_FILTERS: [8]
+        NUM_FILTERS: [64]
 
     MAP_TO_BEV:
         NAME: PointPillarScatter
-        NUM_BEV_FEATURES: 8
+        NUM_BEV_FEATURES: 64
 
     BACKBONE_2D:
         NAME: BaseBEVBackbone
         LAYER_NUMS: [3, 5, 5]
         LAYER_STRIDES: [2, 2, 2]
-        NUM_FILTERS: [32, 64, 128]
+        NUM_FILTERS: [64, 128, 256]
         UPSAMPLE_STRIDES: [1, 2, 4]
-        NUM_UPSAMPLE_FILTERS: [32, 32, 32]
+        NUM_UPSAMPLE_FILTERS: [128, 128, 128]
 
     DENSE_HEAD:
         NAME: AnchorHeadSingle
@@ -143,4 +143,4 @@ OPTIMIZATION:
     LR_WARMUP: False
     WARMUP_EPOCH: 1
 
-    GRAD_NORM_CLIP: 10 
+    GRAD_NORM_CLIP: 10

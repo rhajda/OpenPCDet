@@ -379,9 +379,9 @@ class S2rDataset(DatasetTemplate):
         from .kitti_object_eval_python import eval as kitti_eval
 
         eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos]
-        orig_len = len(eval_gt_annos)
+        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos if info != {}]
 
+        """
         # Limit annos to range set in dataset_config
         range_min = self.eval_range[0]
         range_max = self.eval_range[1]
@@ -403,8 +403,8 @@ class S2rDataset(DatasetTemplate):
         print(f"Limit evaluation to ground truth bounding boxes  in range {range_min} to {range_max} m!")
         print(f"Ground truth detections left: {len(eval_gt_annos_lim)}/{orig_len}")
         print("########################################################################################")
-
-        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos_lim, eval_det_annos_lim, class_names)
+        """
+        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos, eval_det_annos, class_names)
 
         return ap_result_str, ap_dict
 
