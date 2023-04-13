@@ -427,8 +427,7 @@ class S2rDataset(DatasetTemplate):
         try:
             sample_idx = info['point_cloud']['lidar_idx']
         except KeyError:
-            self.__getitem__(index + 1)
-            return
+            return self.__getitem__(index + 1)
         get_item_list = self.dataset_cfg.get('GET_ITEM_LIST', ['points'])
 
         input_dict = {
