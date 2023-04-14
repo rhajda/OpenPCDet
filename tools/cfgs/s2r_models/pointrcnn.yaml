@@ -9,9 +9,9 @@ DATA_CONFIG:
 
         -   NAME: sample_points
             NUM_POINTS: {
-                'train': 32768, # original is half # taken from fixed radius!
-                'val': 32768,
-                'test': 32768
+                'train': 16384, # original is half # taken from fixed radius!
+                'val': 16384,
+                'test': 16384
             }
 
         -   NAME: shuffle_points
@@ -27,7 +27,7 @@ MODEL:
     BACKBONE_3D:
         NAME: PointNet2MSG
         SA_CONFIG:
-            NPOINTS: [2048, 512, 128, 32]
+            NPOINTS: [4096, 1024, 256, 64]
             RADIUS: [[0.1, 0.5], [0.5, 1.0], [1.0, 2.0], [2.0, 4.0]]
             NSAMPLE: [[16, 32], [16, 32], [16, 32], [16, 32]]
             MLPS: [[[16, 16, 32], [32, 32, 64]],
