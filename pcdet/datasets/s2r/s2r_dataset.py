@@ -353,6 +353,7 @@ class S2rDataset(DatasetTemplate):
 
             single_pred_dict = generate_single_sample_dict(index, box_dict)
             single_pred_dict['frame_id'] = frame_id
+            single_pred_dict["gt"] = batch_dict["gt"][index]
             annos.append(single_pred_dict)
 
             if output_path is not None:
@@ -379,7 +380,8 @@ class S2rDataset(DatasetTemplate):
         from .kitti_object_eval_python import eval as kitti_eval
 
         eval_det_annos = copy.deepcopy(det_annos)
-        eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos if info != {}]
+        #eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos if info != {}]
+        eval_gt_annos = [eval_det_anno["gt"]["annos"] for eval_det_anno in eval_det_annos]
 
         """
         # Limit annos to range set in dataset_config
@@ -474,6 +476,9 @@ class S2rDataset(DatasetTemplate):
         if "calib_matricies" in get_item_list:
             input_dict["trans_lidar_to_cam"], input_dict["trans_cam_to_img"] = kitti_utils.calib_to_matricies(calib)
 
+        data_dict = dict()
+        data_dict["gt"] = info
+        input_dict["gt"] = info
         data_dict = self.prepare_data(data_dict=input_dict) # augmentation also applied at this position.
         return data_dict
 
