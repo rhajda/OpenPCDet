@@ -10,7 +10,7 @@ from pcdet.models import load_data_to_gpu
 from pcdet.utils import common_utils
 
 
-def translate_boxes_to_open3d_instance(gt_boxes, box3d, line_set):
+def translate_boxes_to_open3d_instance(gt_boxes, box3d, line_set, gt=False):
     """
              4-------- 6
            /|         /|
@@ -28,7 +28,10 @@ def translate_boxes_to_open3d_instance(gt_boxes, box3d, line_set):
     box3d.center = center
     box3d.extent = lwh
     box3d.R = rot
-    box3d.color = np.asarray([1, 0, 0])
+    if gt:
+        box3d.color = np.asarray([1, 0, 0])
+    else:
+        box3d.color = np.asarray([0, 0, 1])
 
     new_line_set = o3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
     line_set.points = new_line_set.points
@@ -138,21 +141,38 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
                 line_set.clear()
 
             # point cloud
-            pcl.points = batch_dict["points"]
+            points = batch_dict["points"].detach().cpu().numpy()[:, 1:]
+            pcl.points = o3d.utility.Vector3dVector(points)
 
             # Only filter "Car" objects of GT data
-            car_mask_gt = np.asarray([obj_name == "Car" for obj_name in batch_dict["gt"]["annos"]["name"] if obj_name != "DontCare"])
-            boxes_gt = batch_dict["gt"]["annos"]["gt_boxes_lidar"][car_mask_gt]
-
+            car_mask_gt = np.asarray([obj_name == "Car" for obj_name in batch_dict["gt"][0]["annos"]["name"] if obj_name != "DontCare"])
+            boxes_gt = batch_dict["gt"][0]["annos"]["gt_boxes_lidar"][car_mask_gt]
+            box_total = 0
             for box_idx, box in enumerate(boxes_gt):
                 # box: X, Y, Z, L, W, H, Rot_Y
-                translate_boxes_to_open3d_instance(box, boxes_3d[box_idx], line_sets[box_idx])
+                translate_boxes_to_open3d_instance(box, boxes_3d[box_idx], line_sets[box_idx], gt=True)
+                box_total += 1
+
+            # predicted bounding boxes
+            boxes_pred = batch_dict["boxes_lidar"]
+            for box_idx, box in enumerate(boxes_pred):
+                # box: X, Y, Z, L, W, H, Rot_Y
+                translate_boxes_to_open3d_instance(box, boxes_3d[box_total], line_sets[box_total], gt=False)
+                box_total += 1
 
             vis.update_geometry(pcl)
             for box in boxes_3d:
                 vis.update_geometry(box)
             for line_set in line_sets:
                 vis.update_geometry(line_set)
+
+            viewctrl = vis.get_view_control()
+            viewctrl.set_lookat(np.array([0.0, 0.0, 0.0]))
+            viewctrl.set_zoom(30)
+
+            rend_opt = vis.get_render_option()
+            rend_opt.point_size = 2
+
             vis.poll_events()
             vis.update_renderer()
             vis.run()

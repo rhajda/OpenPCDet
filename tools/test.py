@@ -200,6 +200,9 @@ def main():
         )
         dist_test = True
 
+    if args.vis:
+        assert args.batch_size == 1, "Set batch size to 1 if visualizing point clouds and boxes"
+
     if args.batch_size is None:
         args.batch_size = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
     else:
