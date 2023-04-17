@@ -116,7 +116,6 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             progress_bar.update()
 
         if vis:
-            import open3d as o3d
             # initialize
             pcl = o3d.geometry.PointCloud()
             boxes_3d = []
@@ -145,8 +144,9 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
 
             # predicted bounding boxes
             boxes_pred = annos[0]["boxes_lidar"]
-            for box_idx, box in enumerate(boxes_pred):
+            for box_idx, box in enumerate(boxes_pred[boxes_pred[:, 0].argsort()]):  # sorted in ascending x value
                 # box: X, Y, Z, L, W, H, Rot_Y
+                print(f"X,Y,Z,L,W,H,RotY,Score: {box},{annos[0]['score'][box_idx]}")
                 ret = translate_boxes_to_open3d_instance(box, gt=False)
                 boxes_3d.append(ret[0])
                 line_sets.append(ret[1])
