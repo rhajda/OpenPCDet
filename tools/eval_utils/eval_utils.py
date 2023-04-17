@@ -10,7 +10,7 @@ from pcdet.models import load_data_to_gpu
 from pcdet.utils import common_utils
 
 
-def translate_boxes_to_open3d_instance(gt_boxes, box3d, line_set, gt=False):
+def translate_boxes_to_open3d_instance(gt_boxes, gt=False):
     """
              4-------- 6
            /|         /|
@@ -24,18 +24,20 @@ def translate_boxes_to_open3d_instance(gt_boxes, box3d, line_set, gt=False):
     lwh = gt_boxes[3:6] * 1.0
     axis_angles = np.array([0, 0, gt_boxes[6] + 1e-10])
     rot = o3d.geometry.get_rotation_matrix_from_axis_angle(axis_angles)
-    box3d.clear()
-    box3d.center = center
-    box3d.extent = lwh
-    box3d.R = rot
+    box3d = o3d.geometry.OrientedBoundingBox(center, rot, lwh)
     if gt:
         box3d.color = np.asarray([1, 0, 0])
     else:
-        box3d.color = np.asarray([0, 0, 1])
+        box3d.color = np.asarray([0, 1, 1])
 
-    new_line_set = o3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
-    line_set.points = new_line_set.points
-    line_set.lines = o3d.utility.Vector2iVector(np.array([[1, 4], [7, 6]]))
+    line_set = o3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
+    lines = np.asarray(line_set.lines)
+    lines = np.concatenate([lines, np.array([[1, 4], [7, 6]])], axis=0)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    if gt:
+        line_set.paint_uniform_color = np.asarray([1, 0, 0])
+    else:
+        line_set.paint_uniform_color = np.asarray([0, 1, 1])
 
     return box3d, line_set
 
@@ -93,27 +95,6 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     val_loss_list = list()
     glob_feats = []
 
-    if vis:
-        # initialize
-        pcl = o3d.geometry.PointCloud()
-        boxes_3d = []
-        line_sets = []
-        for idx in range(50):
-            boxes_3d.append(o3d.geometry.OrientedBoundingBox())
-            line_sets.append(o3d.geometry.LineSet())
-
-        # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
-        mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
-
-        vis = o3d.visualization.Visualizer()
-        vis.create_window()
-        vis.add_geometry(mesh_frame)
-        vis.add_geometry(pcl)
-        for box_3d in boxes_3d:
-            vis.add_geometry(box_3d)
-        for line_set in line_sets:
-            vis.add_geometry(line_set)
-
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
@@ -135,50 +116,58 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             progress_bar.update()
 
         if vis:
-            # clear boxes
-            for box in boxes_3d:
-                box.clear()
-            for line_set in line_sets:
-                line_set.clear()
+            import open3d as o3d
+            # initialize
+            pcl = o3d.geometry.PointCloud()
+            boxes_3d = []
+            line_sets = []
+
+            # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
+            mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
+
+            vis = o3d.visualization.Visualizer()
+            vis.create_window()
+            vis.add_geometry(mesh_frame)
 
             # point cloud
             points = batch_dict["points"].detach().cpu().numpy()[:, 1:]
             pcl.points = o3d.utility.Vector3dVector(points)
+            pcl.colors = o3d.utility.Vector3dVector(np.asarray([[0, 0, 0]] * len(points)))
 
             # Only filter "Car" objects of GT data
             car_mask_gt = np.asarray([obj_name == "Car" for obj_name in batch_dict["gt"][0]["annos"]["name"] if obj_name != "DontCare"])
             boxes_gt = batch_dict["gt"][0]["annos"]["gt_boxes_lidar"][car_mask_gt]
-            box_total = 0
             for box_idx, box in enumerate(boxes_gt):
                 # box: X, Y, Z, L, W, H, Rot_Y
-                translate_boxes_to_open3d_instance(box, boxes_3d[box_idx], line_sets[box_idx], gt=True)
-                box_total += 1
+                ret = translate_boxes_to_open3d_instance(box, gt=True)
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
 
             # predicted bounding boxes
             boxes_pred = annos[0]["boxes_lidar"]
             for box_idx, box in enumerate(boxes_pred):
                 # box: X, Y, Z, L, W, H, Rot_Y
-                translate_boxes_to_open3d_instance(box, boxes_3d[box_total], line_sets[box_total], gt=False)
-                box_total += 1
+                ret = translate_boxes_to_open3d_instance(box, gt=False)
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
 
-            vis.update_geometry(pcl)
+            vis.add_geometry(pcl)
             for box in boxes_3d:
-                vis.update_geometry(box)
+                vis.add_geometry(box)
             for line_set in line_sets:
-                vis.update_geometry(line_set)
+                vis.add_geometry(line_set)
 
-            viewctrl = vis.get_view_control()
-            viewctrl.set_lookat(np.array([0.0, 0.0, 0.0]))
-            viewctrl.set_zoom(30)
+            #viewctrl = vis.get_view_control()
+            #viewctrl.set_lookat(np.array([0.0, 0.0, 0.0]))
+            #viewctrl.set_zoom(30)
 
-            rend_opt = vis.get_render_option()
-            rend_opt.point_size = 2
+            #rend_opt = vis.get_render_option()
+            #rend_opt.point_size = 2
 
             vis.poll_events()
             vis.update_renderer()
             vis.run()
-
-    vis.destroy_window()
+            vis.destroy_window()
 
     with open(result_dir / f'glob_feat_{str(epoch_id).zfill(2)}.pkl', "wb") as file:
         pickle.dump(glob_feats, file)
