@@ -32,7 +32,7 @@ class SECONDNet(Detector3DTemplate):
             return ret_dict, tb_dict, disp_dict
         else:
             pred_dicts, recall_dicts = self.post_processing(batch_dict)
-            return pred_dicts, recall_dicts
+            return pred_dicts, recall_dicts, None
 
     def get_training_loss(self):
         disp_dict = {}
