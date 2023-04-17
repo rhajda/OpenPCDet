@@ -93,26 +93,6 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     val_loss_list = list()
     glob_feats = []
 
-    if vis:
-        pcl = o3d.geometry.PointCloud()
-        boxes_3d = []
-        line_sets = []
-        for idx in range(50):
-            boxes_3d.append(o3d.geometry.OrientedBoundingBox())
-            line_sets.append(o3d.geometry.LineSet())
-
-        # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
-        mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
-
-        vis = o3d.visualization.Visualizer()
-        vis.create_window()
-        vis.add_geometry(mesh_frame)
-        vis.add_geometry(pcl)
-        for box_3d in boxes_3d:
-            vis.add_geometry(box_3d)
-        for line_set in line_sets:
-            vis.add_geometry(line_set)
-
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
@@ -134,6 +114,26 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             progress_bar.update()
 
         if vis:
+            # initialize
+            pcl = o3d.geometry.PointCloud()
+            boxes_3d = []
+            line_sets = []
+            for idx in range(50):
+                boxes_3d.append(o3d.geometry.OrientedBoundingBox())
+                line_sets.append(o3d.geometry.LineSet())
+
+            # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
+            mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
+
+            vis = o3d.visualization.Visualizer()
+            vis.create_window()
+            vis.add_geometry(mesh_frame)
+            vis.add_geometry(pcl)
+            for box_3d in boxes_3d:
+                vis.add_geometry(box_3d)
+            for line_set in line_sets:
+                vis.add_geometry(line_set)
+
             # clear boxes
             for box in boxes_3d:
                 box.clear()
@@ -154,7 +154,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
                 box_total += 1
 
             # predicted bounding boxes
-            boxes_pred = batch_dict["boxes_lidar"]
+            boxes_pred = annos[0]["boxes_lidar"]
             for box_idx, box in enumerate(boxes_pred):
                 # box: X, Y, Z, L, W, H, Rot_Y
                 translate_boxes_to_open3d_instance(box, boxes_3d[box_total], line_sets[box_total], gt=False)
@@ -176,8 +176,8 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             vis.poll_events()
             vis.update_renderer()
             vis.run()
-
-    vis.destroy_window()
+            vis.close()
+            vis.destroy_window()
 
     with open(result_dir / f'glob_feat_{str(epoch_id).zfill(2)}.pkl', "wb") as file:
         pickle.dump(glob_feats, file)
