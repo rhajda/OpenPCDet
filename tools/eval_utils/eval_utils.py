@@ -35,9 +35,9 @@ def translate_boxes_to_open3d_instance(gt_boxes, gt=False):
     lines = np.concatenate([lines, np.array([[1, 4], [7, 6]])], axis=0)
     line_set.lines = o3d.utility.Vector2iVector(lines)
     if gt:
-        line_set.paint_uniform_color = np.asarray([1, 0, 0])
+        line_set.paint_uniform_color(np.asarray([1, 0, 0]))
     else:
-        line_set.paint_uniform_color = np.asarray([0, 1, 1])
+        line_set.paint_uniform_color(np.asarray([0, 1, 1]))
 
     return box3d, line_set
 
