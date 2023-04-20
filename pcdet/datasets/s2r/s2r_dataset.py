@@ -30,7 +30,7 @@ class S2rDataset(DatasetTemplate):
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_KITTI_full' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         self.tb_log = tb_log
@@ -92,7 +92,7 @@ class S2rDataset(DatasetTemplate):
         self.split = split
         self.root_split_path = self.root_path / 'training'
 
-        split_dir = self.root_path / 'ImageSets_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets_KITTI_full' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         if self.logger is not None:
@@ -499,11 +499,33 @@ def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=16)
         pickle.dump(kitti_infos_train, f)
     print('Kitti info train file is saved to %s' % train_filename)
 
+    # calculate mean object sizes of train split
+    kitti_infos_train = [kitti_info_train for kitti_info_train in kitti_infos_train if kitti_info_train != {}]
+    car_mask_gt = np.asarray([obj["annos"]["name"] == "Car" for obj in kitti_infos_train])
+    car_dims_gt = np.asarray([obj["annos"]["dimensions"][mask] for obj, mask in zip(kitti_infos_train, car_mask_gt)])
+    mean_l = np.mean([np.mean(car_dim[:, 0]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_w = np.mean([np.mean(car_dim[:, 1]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_h = np.mean([np.mean(car_dim[:, 2]) for car_dim in car_dims_gt if car_dim.any()])
+    print(f"TRAIN mean LENGTH: {mean_l}")
+    print(f"TRAIN mean WIDTH: {mean_w}")
+    print(f"TRAIN mean HEIGHT: {mean_h}")
+
     dataset.set_split(val_split)
     kitti_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(val_filename, 'wb') as f:
         pickle.dump(kitti_infos_val, f)
     print('Kitti info val file is saved to %s' % val_filename)
+
+    # calculate mean object sizes of val split
+    kitti_infos_val = [kitti_info_val for kitti_info_val in kitti_infos_val if kitti_info_val != {}]
+    car_mask_gt = np.asarray([obj["annos"]["name"] == "Car" for obj in kitti_infos_val])
+    car_dims_gt = np.asarray([obj["annos"]["dimensions"][mask] for obj, mask in zip(kitti_infos_val, car_mask_gt)])
+    mean_l = np.mean([np.mean(car_dim[:, 0]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_w = np.mean([np.mean(car_dim[:, 1]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_h = np.mean([np.mean(car_dim[:, 2]) for car_dim in car_dims_gt if car_dim.any()])
+    print(f"VAL mean LENGTH: {mean_l}")
+    print(f"VAL mean WIDTH: {mean_w}")
+    print(f"VAL mean HEIGHT: {mean_h}")
 
     # dataset.set_split(test_split)
     # kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
