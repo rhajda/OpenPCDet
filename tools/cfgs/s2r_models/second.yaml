@@ -39,6 +39,7 @@ MODEL:
             {
                 'class_name': 'Car',
                 'anchor_sizes': [[3.9, 1.6, 1.56]],
+                #'anchor_sizes': [[4.56, 1.95, 1.56]],
                 'anchor_rotations': [0, 1.57],
                 'anchor_bottom_heights': [-1.73],
                 'align_center': False,
