@@ -38,8 +38,8 @@ MODEL:
         ANCHOR_GENERATOR_CONFIG: [
             {
                 'class_name': 'Car',
-                'anchor_sizes': [[3.9, 1.6, 1.56]],
-                #'anchor_sizes': [[4.56, 1.95, 1.56]],
+                'anchor_sizes': [[3.92, 1.63, 1.53]],  # KITTI
+                #'anchor_sizes': [[4.56, 1.95, 1.56]],  # CARLA
                 'anchor_rotations': [0, 1.57],
                 'anchor_bottom_heights': [-1.73],
                 'align_center': False,
