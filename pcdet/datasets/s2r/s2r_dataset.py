@@ -212,6 +212,10 @@ class S2rDataset(DatasetTemplate):
                 annotations['score'] = np.array([obj.score for obj in obj_list])
                 annotations['difficulty'] = np.array([obj.level for obj in obj_list], np.int32)
 
+                mask_dc = annotations["name"] != "DontCare"
+                for key, val in annotations.items():
+                    annotations[key] = val[mask_dc]
+
                 num_objects = len([obj.cls_type for obj in obj_list if obj.cls_type != 'DontCare'])
                 num_gt = len(annotations['name'])
                 index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
@@ -226,9 +230,9 @@ class S2rDataset(DatasetTemplate):
                 gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
-                mask = box_utils.mask_boxes_outside_range_numpy(gt_boxes_lidar, self.point_cloud_range)
+                mask_range = box_utils.mask_boxes_outside_range_numpy(gt_boxes_lidar, self.point_cloud_range)
                 for key, val in annotations.items():
-                    annotations[key] = val[mask]
+                    annotations[key] = val[mask_range]
 
                 info['annos'] = annotations
 
