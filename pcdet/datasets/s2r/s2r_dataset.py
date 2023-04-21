@@ -226,6 +226,10 @@ class S2rDataset(DatasetTemplate):
                 gt_boxes_lidar = np.concatenate([loc_lidar, l, w, h, rots[..., np.newaxis]], axis=1)
                 annotations['gt_boxes_lidar'] = gt_boxes_lidar
 
+                mask = box_utils.mask_boxes_outside_range_numpy(gt_boxes_lidar, self.point_cloud_range)
+                for key, val in annotations.items():
+                    annotations[key] = val[mask]
+
                 info['annos'] = annotations
 
                 if count_inside_pts: # TODO
