@@ -82,10 +82,35 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
         tb_log.add_histogram(tag, parm.data.cpu().numpy(), epoch_id)
 
     # start evaluation
-    eval_utils.eval_one_epoch(
+    tb_dict, _ = eval_utils.eval_one_epoch(
         cfg, model, test_loader, epoch_id, logger, dist_test=dist_test,
         result_dir=eval_output_dir, save_to_file=args.save_to_file, vis=args.vis
     )
+
+    result_str = ""
+    header_str = ""
+    for idx, (key, val) in enumerate(sorted(tb_dict.items())):
+        tb_log.add_scalar(f"eval_offline/{key}", val, epoch_id)
+        result_str += str(val) + ","
+        header_str += str(key) + ","
+    result_str = result_str[:-1]
+    header_str = header_str[:-1]
+
+    # Save results to csv
+    if os.path.getsize(eval_output_dir / 'result.pkl') > 0:
+        with open(eval_output_dir / 'result.pkl', 'rb') as f:
+            det_annos = pickle.load(f)
+            total_pred_objects = 0
+            for anno in det_annos:
+                total_pred_objects += anno['name'].__len__()
+            avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+    else:
+        # results.pkl empty, no predictions
+        avg_pred_obj = 0.0
+    with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(["epoch_id", header_str, "avg_pred_obj"])
+        csv_writer.writerow([epoch_id, result_str, avg_pred_obj])
 
 
 def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
