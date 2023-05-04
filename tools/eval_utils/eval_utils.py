@@ -4,9 +4,42 @@ import time
 import numpy as np
 import torch
 import tqdm
+import open3d as o3d
 
 from pcdet.models import load_data_to_gpu
 from pcdet.utils import common_utils
+
+
+def translate_boxes_to_open3d_instance(gt_boxes, gt=False):
+    """
+             4-------- 6
+           /|         /|
+          5 -------- 3 .
+          | |        | |
+          . 7 -------- 1
+          |/         |/
+          2 -------- 0
+    """
+    center = gt_boxes[0:3]
+    lwh = gt_boxes[3:6] * 1.0
+    axis_angles = np.array([0, 0, gt_boxes[6] + 1e-10])
+    rot = o3d.geometry.get_rotation_matrix_from_axis_angle(axis_angles)
+    box3d = o3d.geometry.OrientedBoundingBox(center, rot, lwh)
+    if gt:
+        box3d.color = np.asarray([1, 0, 0])
+    else:
+        box3d.color = np.asarray([0, 1, 1])
+
+    line_set = o3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
+    lines = np.asarray(line_set.lines)
+    lines = np.concatenate([lines, np.array([[1, 4], [7, 6]])], axis=0)
+    line_set.lines = o3d.utility.Vector2iVector(lines)
+    if gt:
+        line_set.paint_uniform_color(np.asarray([1, 0, 0]))
+    else:
+        line_set.paint_uniform_color(np.asarray([0, 1, 1]))
+
+    return box3d, line_set
 
 
 def statistics_info(cfg, ret_dict, metric, disp_dict):
@@ -20,7 +53,7 @@ def statistics_info(cfg, ret_dict, metric, disp_dict):
 
 
 def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, save_to_file=False, result_dir=None,
-                   get_val_loss=False):
+                   get_val_loss=False, vis=False):
     result_dir.mkdir(parents=True, exist_ok=True)
 
     final_output_dir = result_dir / 'final_result' / 'data'
@@ -61,6 +94,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
     start_time = time.time()
     val_loss_list = list()
     glob_feats = []
+
     for i, batch_dict in enumerate(dataloader):
         load_data_to_gpu(batch_dict)
         with torch.no_grad():
@@ -80,6 +114,60 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         if cfg.LOCAL_RANK == 0:
             progress_bar.set_postfix(disp_dict)
             progress_bar.update()
+
+        if vis:
+            # initialize
+            pcl = o3d.geometry.PointCloud()
+            boxes_3d = []
+            line_sets = []
+
+            # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
+            mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
+
+            vis = o3d.visualization.Visualizer()
+            vis.create_window()
+            vis.add_geometry(mesh_frame)
+
+            # point cloud
+            points = batch_dict["points"].detach().cpu().numpy()[:, 1:]
+            pcl.points = o3d.utility.Vector3dVector(points)
+            pcl.colors = o3d.utility.Vector3dVector(np.asarray([[0, 0, 0]] * len(points)))
+
+            # Only filter "Car" objects of GT data
+            car_mask_gt = np.asarray([obj_name == "Car" for obj_name in batch_dict["gt"][0]["annos"]["name"] if obj_name != "DontCare"])
+            boxes_gt = batch_dict["gt"][0]["annos"]["gt_boxes_lidar"][car_mask_gt]
+            for box_idx, box in enumerate(boxes_gt):
+                # box: X, Y, Z, L, W, H, Rot_Y
+                ret = translate_boxes_to_open3d_instance(box, gt=True)
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
+
+            # predicted bounding boxes
+            boxes_pred = annos[0]["boxes_lidar"]
+            for box_idx, box in enumerate(boxes_pred[boxes_pred[:, 0].argsort()]):  # sorted in ascending x value
+                # box: X, Y, Z, L, W, H, Rot_Y
+                print(f"X,Y,Z,L,W,H,RotY,Score: {box},{annos[0]['score'][box_idx]}")
+                ret = translate_boxes_to_open3d_instance(box, gt=False)
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
+
+            vis.add_geometry(pcl)
+            for box in boxes_3d:
+                vis.add_geometry(box)
+            for line_set in line_sets:
+                vis.add_geometry(line_set)
+
+            #viewctrl = vis.get_view_control()
+            #viewctrl.set_lookat(np.array([0.0, 0.0, 0.0]))
+            #viewctrl.set_zoom(30)
+
+            #rend_opt = vis.get_render_option()
+            #rend_opt.point_size = 2
+
+            vis.poll_events()
+            vis.update_renderer()
+            vis.run()
+            vis.destroy_window()
 
     with open(result_dir / f'glob_feat_{str(epoch_id).zfill(2)}.pkl', "wb") as file:
         pickle.dump(glob_feats, file)
