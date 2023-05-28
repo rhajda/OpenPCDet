@@ -15,6 +15,7 @@ from .pandaset.pandaset_dataset import PandasetDataset
 from .lyft.lyft_dataset import LyftDataset
 from .indy.indy_dataset import IndyDataset
 from .s2r.s2r_dataset import S2rDataset
+from .autolabel.autolabel_dataset import AutolabelDataset
 
 
 __all__ = {
@@ -25,7 +26,8 @@ __all__ = {
     'PandasetDataset': PandasetDataset,
     'LyftDataset': LyftDataset,
     'IndyDataset': IndyDataset,
-    'S2rDataset': S2rDataset
+    'S2rDataset': S2rDataset,
+    'AutolabelDataset': AutolabelDataset
 }
 
 
