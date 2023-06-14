@@ -1,7 +1,7 @@
 CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
 
 DATA_CONFIG:
-    _BASE_CONFIG_: cfgs/dataset_configs/autolabel_dataset.yaml
+    _BASE_CONFIG_: /home/tools/cfgs/dataset_configs/autolabel_dataset.yaml
 
     DATA_PROCESSOR: # This overwrites the DATA_PROCESSOR given in the 'dataset_configs/s2r_dataset'
         -   NAME: mask_points_and_boxes_outside_range

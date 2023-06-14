@@ -6,6 +6,9 @@ RUN pip install open3d
 
 WORKDIR /home
 COPY . .
+RUN rm -rf /home/autolabel_pipeline
+RUN rm -rf /home/og_git
+
 RUN git config --global --add safe.directory /home
 
 
