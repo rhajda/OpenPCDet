@@ -1,14 +1,16 @@
+
+# Import libraries
 from easydict import EasyDict
 import pandas as pd
 import numpy as np
 import pathlib
 import yaml
 import os
-import torch
+# Import visualization functions
 from visualize_pcds import get_file_names, visualize_single_pcd
+# Import voting schemes
+from voting_schemes import nms_voting, majority_voting, test_voting
 
-from pcdet.utils import box_utils
-from pcdet.ops.iou3d_nms import iou3d_nms_utils
 
 # Define a working path used to access different paths
 working_path = pathlib.Path(__file__).resolve().parents[1]
@@ -18,7 +20,15 @@ working_path = pathlib.Path(__file__).resolve().parents[1]
 
 FILE DESCRIPTION: 
 
+This file is the main file of the autolabel pipeline. It serves as a central script, triggering respective functions of
+the pipeline. All parameters are configurable in autolabel.yaml. 
+
+Important: 
 dataframe structure: ['ID', 'label', 'loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht', 'rot_z', 'score']
+
+voting schemes: 
+    - non maximum suppression + confidence
+    - majority voting
 
 """
 
@@ -40,8 +50,8 @@ def load_config():
     return cfg
 
 
-# Function that loads the object list of a specific frame into a dataframe.
-def load_file_to_dataframe(path_data, file_name):
+# Function loads csv data of a specific frame to a dataframe containing all bboxes
+def csv_to_dataframe(path_data, file_name):
 
     columns = ['ID', 'label', 'loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht', 'rot_z', 'score']
 
@@ -65,134 +75,50 @@ def load_file_to_dataframe(path_data, file_name):
     return df
 
 
-# Function that generates a ndarray encoding the df rows of overlapping bboxes.
-def identify_overlapping_bboxes(df1, df2):
-    # Uses euclidian centerpoint distance and then computes IoU.
+# Function that loads the bboxes predicted for a frame ID to dataframe for every model.
+def load_frame_predictions(frame_ID, path_frames):
 
-    # Compute the euclidian distance between all elements of the dataframes to filter out non-overlapping ones.
-    distances = []
-    for index_df1 in range(len(df1)):
-        centerpoint_1 = np.array(df1.iloc[index_df1][2:5].values.astype(float))
-        distances_element = []
-        for index_df2 in range(len(df2)):
-            centerpoint_2 = np.array(df2.iloc[index_df2][2:5].values.astype(float))
-            distances_element.append(compute_euclidian_distance(centerpoint_1, centerpoint_2))
-        distances.append(distances_element)
+    # sort all frames by ascending order for all models
+    all_frame_IDs = sorted(get_file_names(path_frames, '.csv'), key=lambda x: int(x))
+    file_path = os.path.join(path_frames, frame_ID + ".csv")
 
-    # Compute a threshold that guarantees that there is no intersection between bboxes.
-    largest_dim_len = max(df1['dim_len'].max(), df2['dim_len'].max())
-    largest_dim_wi = max(df1['dim_wi'].max(), df2['dim_wi'].max())
-    largest_bbox_radius = (((largest_dim_wi / 2) ** 2) + ((largest_dim_len / 2) ** 2)) ** 0.5
-    centerpoint_distance_threshold = (2 * (largest_bbox_radius * 1.1))
+    # Load predictions for specific frame_ID  to dataframe
+    df_frame_ID = csv_to_dataframe(file_path, frame_ID)
 
-    detected_overlaps = np.array(
-        [[1 if val < centerpoint_distance_threshold else 0 for val in inner] for inner in distances])
-    detected_overlaps = detected_overlaps.astype(float)
-
-    # for the bounding boxes below the non-overlap threshold, get IoU.
-    combinations_to_check = np.argwhere(detected_overlaps == 1)
-
-    #print('possible overlaps: ', "\n", detected_overlaps)
-
-    for i in range(len(combinations_to_check)):
-        bbox1 = df1.iloc[combinations_to_check[i][0]]
-        bbox2 = df2.iloc[combinations_to_check[i][1]]
-        iou = iou_2_df_objects(bbox1, bbox2)
-        detected_overlaps[combinations_to_check[i][0]][combinations_to_check[i][1]] = iou
-
-    if cfg.PIPELINE.PRINT_INFORMATION:
-        # Set the printing options
-        np.set_printoptions(precision=2, suppress=True)
-        print("centerpoint_distance_threshold: ", centerpoint_distance_threshold)
-        print("Detected overlaps with IoU: ", "\n", detected_overlaps)
-
-    return detected_overlaps
-
-
-def identify_representative_bboxes(detected_overlaps, df1, df2):
-
-    # get the indeces of overlapping bboxes.
-    overlaps_to_check = np.argwhere(detected_overlaps != 0)
-
-    for i in range(len(overlaps_to_check)):
-
-        bbox1 = torch.tensor(np.array(df1.iloc[overlaps_to_check[i][0]][2:9].values.astype(float)))
-        bbox2 = torch.tensor(np.array(df2.iloc[overlaps_to_check[i][1]][2:9].values.astype(float)))
-        boxes = torch.stack([bbox1, bbox2], dim=0).float().cuda()
-
-        score1 = torch.tensor(np.array(df1.iloc[overlaps_to_check[i][0]][9].astype(float)))
-        score2 = torch.tensor(np.array(df2.iloc[overlaps_to_check[i][1]][9].astype(float)))
-        scores = torch.stack([score1, score2], dim=0).float()
-
-        representative = iou3d_nms_utils.nms_gpu(boxes, scores, 0.1)
-
-        if cfg.PIPELINE.PRINT_INFORMATION:
-            #print("position: ", overlaps_to_check[i])
-            # print("boxes: ", boxes)
-            # print("scores: ", scores)
-            #print("representative: ", representative)
-            pass
-
-
-
-
-
-
-# Function that computes the euclidian distance between two points.
-def compute_euclidian_distance(point1, point2):
-    return ((point2[0] - point1[0])**2 + (point2[1] - point1[1])**2 + (point2[2] - point1[2])**2) ** 0.5
-
-
-# Function that computes  the IoU of two bboxes (pcdet)
-def iou_2_df_objects(bbox1, bbox2):
-
-    # write elements ['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht', 'rot_z'] from df.iloc[] to torch.tensor
-    box1 = torch.tensor(np.array([bbox1[2:9].values.astype(float)]))
-    box2 = torch.tensor(np.array([bbox2[2:9].values.astype(float)]))
-    iou = box_utils.boxes3d_nearest_bev_iou(box1, box2)
-    iou = iou.item()
-
-    return iou
-
-
+    return all_frame_IDs, df_frame_ID
 
 
 if __name__ == "__main__":
 
-    # Choose element to display '000618',  '003658', '003676'
-    TEMP_choose_element = '000618'
-
-
+    # Choose element to display '000618',  '003658', '003676', '004769'
+    frame_ID = '000618'
 
     # Load EasyDict to access parameters.
     cfg = load_config()
 
-    # Load all predicted frame IDs --> ptrcnn / ptpillar
-    ptrcnn_file_names_all = sorted(get_file_names(cfg.DATA.PATH_PTRCNN_PREDICTIONS, '.csv'), key=lambda x: int(x))
-    ptpillar_file_names_all = sorted(get_file_names(cfg.DATA.PATH_PTPILLAR_PREDICTIONS, '.csv'), key=lambda x: int(x))
 
-    ptrcnn_file_path = os.path.join(cfg.DATA.PATH_PTRCNN_PREDICTIONS, TEMP_choose_element + ".csv")
-    ptpillar_file_path = os.path.join(cfg.DATA.PATH_PTPILLAR_PREDICTIONS, TEMP_choose_element + ".csv")
-    df_ptrcnn = load_file_to_dataframe(ptrcnn_file_path, TEMP_choose_element)
-    df_ptpillar = load_file_to_dataframe(ptpillar_file_path, TEMP_choose_element)
+
+    # Load all predicted frame IDs (ptrcnn & ptpillar & second)
+    ptrcnn_all_frame_IDs, df_ptrcnn= load_frame_predictions(frame_ID, cfg.DATA.PATH_PTRCNN_PREDICTIONS)
+    ptpillar_all_frame_IDs, df_ptpillar = load_frame_predictions(frame_ID, cfg.DATA.PATH_PTPILLAR_PREDICTIONS)
+    second_all_frame_IDs, df_second = load_frame_predictions(frame_ID, cfg.DATA.PATH_SECOND_PREDICTIONS)
 
     if cfg.PIPELINE.PRINT_INFORMATION:
         print("df_ptrcnn: ", "\n", df_ptrcnn)
         print("df_ptpillar: ", "\n", df_ptpillar)
+        print("df_second: ", "\n", df_second)
 
+    ## TEST nms_standard.
+    #nms_voting.non_maximum_suppression_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
 
+    ## TEST majority_voting.
+    majority_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
 
-
-    detected_overlaps = identify_overlapping_bboxes(df_ptrcnn, df_ptpillar)
-
-
-    #identify_representative_bboxes(detected_overlaps, df_ptrcnn, df_ptpillar)
-
-    # Compute intersection over union of two boxes:
-    #iou_2_objects = iou_2_df_objects(df_ptrcnn.iloc[0],  df_ptpillar.iloc[0])
-    #print("iou_2_objects: ", iou_2_objects)
+    ## TEST test_voting.
+    #test_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
 
 
     if cfg.PIPELINE.SHOW_POINT_CLOUDS:
         print("\n", "Visualization triggered:")
-        visualize_single_pcd(TEMP_choose_element, cfg.VISUALISATION.BBOXES_TO_LOAD, cfg)
+        visualize_single_pcd(frame_ID, cfg.VISUALISATION.BBOXES_TO_LOAD, cfg)
+

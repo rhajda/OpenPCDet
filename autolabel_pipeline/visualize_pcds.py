@@ -17,13 +17,14 @@ working_path = pathlib.Path(__file__).resolve().parents[1]
 FILE DESCRIPTION: 
 
 This file displays point clouds using open3d. The user can either specify a specific point cloud to be displayed or 
-randomly display 5 point clouds. The script can load ['groundtruths', 'pointrcnn', 'pointpillar']. The point cloud will
-always be displayed, bbox sources can be chosen in the .yaml file. 
-If one want to load only groundtruths --> BBOXES_TO_LOAD:['groundtruths'].
+randomly display 5 point clouds. The script can load ['groundtruths', 'pointrcnn', 'pointpillar', 'pseudo_labels']. 
+The point cloud will always be displayed, bbox sources can be defined in the .yaml file. 
+Ex.: If one wants to load only groundtruths --> BBOXES_TO_LOAD:['groundtruths'].
 
 Ground truths are displayed in red. 
 Predicted boxes (point rcnn) in blue.  
 Predicted boxes (point pillar) in green. 
+Pseudo_labels are displayed in orange.
 
 The script has to be triggered directly. It loads arguments form autolabel.yaml (VISUALIZATION)
 
@@ -70,6 +71,14 @@ def load_common_pcds(bbox_source):
                 pointpillar_file_names = get_file_names(cfg.DATA.PATH_PTPILLAR_PREDICTIONS, '.csv')
                 bbox_source_elements.append(pointpillar_file_names)
 
+            if element == 'second':
+                second_file_names = get_file_names(cfg.DATA.PATH_SECOND_PREDICTIONS, '.csv')
+                bbox_source_elements.append(second_file_names)
+
+            if element == 'pseudo_labels':
+                pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS, '.csv')
+                bbox_source_elements.append(pseudo_labels_file_names)
+
     # Load point clouds / Groundtruth data / Point-rcnn data:
     point_cloud_files = get_file_names(cfg.DATA.PATH_POINT_CLOUDS, '.pcd')
 
@@ -108,19 +117,40 @@ def translate_boxes_to_open3d_instance(gt_boxes, gt):
           |/         |/
           2 -------- 0
     """
+    if gt == 'groundtruths':
+        color_groundtruths = [1, 0, 0]      # red
+
+    if gt == 'pointrcnn':
+        color_pointrcnn = [0, 0, 1]         # dark blue
+
+    if gt == 'pointpillar':
+        color_pointpillar = [0, 0.7, 1]     # medium blue
+
+    if gt == 'second':
+        color_second = [0, 1, 1]            # light blue
+
+    if gt == 'pseudo_labels':
+        color_pseudo_labels = [0, 1, 0]     # green
+
     center = gt_boxes[0:3]
     lwh = gt_boxes[3:6] * 1.0
     axis_angles = np.array([0, 0, gt_boxes[6] + 1e-10])
     rot = o3d.geometry.get_rotation_matrix_from_axis_angle(axis_angles)
     box3d = o3d.geometry.OrientedBoundingBox(center, rot, lwh)
     if gt == 'groundtruths':
-        box3d.color = np.asarray([1, 0, 0])
+        box3d.color = np.asarray(color_groundtruths)
 
     if gt == 'pointrcnn':
-        box3d.color = np.asarray([0, 1, 1])
+        box3d.color = np.asarray(color_pointrcnn)
 
     if gt == 'pointpillar':
-        box3d.color = np.asarray([0, 1, 0])
+        box3d.color = np.asarray(color_pointpillar)
+
+    if gt == 'second':
+        box3d.color = np.asarray(color_second)
+
+    if gt == 'pseudo_labels':
+        box3d.color = np.asarray(color_pseudo_labels)
 
 
     line_set = o3d.geometry.LineSet.create_from_oriented_bounding_box(box3d)
@@ -129,17 +159,25 @@ def translate_boxes_to_open3d_instance(gt_boxes, gt):
     line_set.lines = o3d.utility.Vector2iVector(lines)
 
     if gt == 'groundtruths':
-        line_set.paint_uniform_color(np.asarray([1, 0, 0]))
+        line_set.paint_uniform_color(np.asarray(color_groundtruths))
+
     if gt == 'pointrcnn':
-        line_set.paint_uniform_color(np.asarray([0, 1, 1]))
+        line_set.paint_uniform_color(np.asarray(color_pointrcnn))
+
     if gt == 'pointpillar':
-        line_set.paint_uniform_color(np.asarray([0, 1, 0]))
+        line_set.paint_uniform_color(np.asarray(color_pointpillar))
+
+    if gt == 'second':
+        line_set.paint_uniform_color(np.asarray(color_second))
+
+    if gt == 'pseudo_labels':
+        line_set.paint_uniform_color(np.asarray(color_pseudo_labels))
 
     return box3d, line_set
 
 
 # This function loads the pcd, predicted boxes and ground-truths of a specified frame ID and visualizes it in open3d.
-def visualize(single_pcd, bbox_source):
+def visualize_single_pcd(single_pcd, bbox_source, cfg):
 
     print("Visualizing frame ID: ", single_pcd)
     print("Sources: ", bbox_source)
@@ -170,7 +208,7 @@ def visualize(single_pcd, bbox_source):
             gt_array = np.genfromtxt(gt_file, delimiter=' ', dtype=str)
 
             if np.size(gt_array) == 0:
-                print("Ground-truths, ID ", my_pcd, ": ", "EMPTY ARRAY.")
+                print("Ground-truths, ID ", single_pcd, ": ", "EMPTY ARRAY.")
                 continue
 
             if gt_array.ndim == 1:
@@ -195,7 +233,7 @@ def visualize(single_pcd, bbox_source):
                 boxes_3d.append(ret[0])
                 line_sets.append(ret[1])
 
-            print("Ground-truths, ID ", my_pcd, ": ", gt_labels)
+            print("Ground-truths (red), ID ", single_pcd, ": ", gt_labels)
             # print("Ground truth ID: ", gt_file)
 
         if element == 'pointrcnn':
@@ -205,7 +243,7 @@ def visualize(single_pcd, bbox_source):
             prcnn_pred_array = np.genfromtxt(prcnn_file, delimiter=',', dtype=str)
 
             if np.size(prcnn_pred_array) == 0:
-                print("Predicted pt-rcnn, ID ", my_pcd, ": ", "EMPTY ARRAY.")
+                print("Predicted pt-rcnn, ID ", single_pcd, ": ", "EMPTY ARRAY.")
                 continue
 
             if prcnn_pred_array.ndim == 1:
@@ -220,7 +258,7 @@ def visualize(single_pcd, bbox_source):
                 boxes_3d.append(ret[0])
                 line_sets.append(ret[1])
 
-            print("Predicted pt-rcnn, ID ", my_pcd, ": ", prcnn_labels)
+            print("Predicted pt-rcnn (dark blue), ID ", single_pcd, ": ", prcnn_labels)
             # print("Pt-rcnn ID: ", prcnn_file)
 
         if element == 'pointpillar':
@@ -230,7 +268,7 @@ def visualize(single_pcd, bbox_source):
             ppillar_pred_array = np.genfromtxt(ppillar_file, delimiter=',', dtype=str)
 
             if np.size(ppillar_pred_array) == 0:
-                print("Predicted pt-pillar, ID ", my_pcd, ": ", "EMPTY ARRAY.")
+                print("Predicted pt-pillar, ID ", single_pcd, ": ", "EMPTY ARRAY.")
                 continue
 
             if ppillar_pred_array.ndim == 1:
@@ -245,8 +283,58 @@ def visualize(single_pcd, bbox_source):
                 boxes_3d.append(ret[0])
                 line_sets.append(ret[1])
 
-            print("Predicted pt-pillar, ID ", my_pcd, ": ", ppillar_labels)
+            print("Predicted pt-pillar (medium blue), ID ", single_pcd, ": ", ppillar_labels)
             # print("Pt-pillar ID: ", ppillar_file)
+
+        if element == 'second':
+            second_file = os.path.join(cfg.DATA.PATH_SECOND_PREDICTIONS, single_pcd + ".csv")
+
+            # Predicted bounding boxes POINT-PILLAR
+            second_pred_array = np.genfromtxt(second_file, delimiter=',', dtype=str)
+
+            if np.size(second_pred_array) == 0:
+                print("Predicted second, ID ", single_pcd, ": ", "EMPTY ARRAY.")
+                continue
+
+            if second_pred_array.ndim == 1:
+                second_pred_array = second_pred_array.reshape(1, -1)
+
+            second_labels = second_pred_array[:, 0]
+            second_boxes = second_pred_array[:, 1:].astype(float)
+
+            for box_idx, box in enumerate(second_boxes[second_boxes[:, 0].argsort()]):
+                # print(f"X,Y,Z,L,W,H,RotY,Score: {box}")
+                ret = translate_boxes_to_open3d_instance(box, gt='second')
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
+
+            print("Predicted second (light blue), ID ", single_pcd, ": ", second_labels)
+            # print("Second ID: ", ppillar_file)
+
+        if element == 'pseudo_labels':
+            pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS, single_pcd + ".csv")
+
+            # Predicted bounding boxes POINT-PILLAR
+            pseudo_label_pred_array = np.genfromtxt(pseudo_label_file, delimiter=',', dtype=str)
+
+            if np.size(pseudo_label_pred_array) == 0:
+                print("Pseudo_labels, ID ", single_pcd, ": ", "EMPTY ARRAY.")
+                continue
+
+            if pseudo_label_pred_array.ndim == 1:
+                pseudo_label_pred_array = pseudo_label_pred_array.reshape(1, -1)
+
+            pseudo_label_labels = pseudo_label_pred_array[:, 0]
+            pseudo_label_boxes = pseudo_label_pred_array[:, 1:].astype(float)
+
+            for box_idx, box in enumerate(pseudo_label_boxes[pseudo_label_boxes[:, 0].argsort()]):
+                # print(f"X,Y,Z,L,W,H,RotY,Score: {box}")
+                ret = translate_boxes_to_open3d_instance(box, gt='pseudo_labels')
+                boxes_3d.append(ret[0])
+                line_sets.append(ret[1])
+
+            print("Pseudo_labels (green), ID ", single_pcd, ": ", pseudo_label_labels)
+            # print("Pseudo_label ID: ", pseudo_label_file)
 
     vis.add_geometry(pcd)
     for box in boxes_3d:
@@ -258,7 +346,7 @@ def visualize(single_pcd, bbox_source):
     viewctrl.set_lookat(np.array([0.0, 0.0, 0.0]))
     viewctrl.set_zoom(30)
     rend_opt = vis.get_render_option()
-    rend_opt.point_size = 2
+    rend_opt.point_size = 3
     vis.poll_events()
     vis.update_renderer()
     vis.run()
@@ -266,30 +354,37 @@ def visualize(single_pcd, bbox_source):
     print("\n")
 
 
-if __name__== "__main__":
+# This function triggers the open3D visualization depending on the input given: my_pcd = 'xxxxx' , ''
+def trigger_visualization(my_pcd, bbox_source):
 
-    # Load EasyDict to access parameters.
-    cfg = load_config()
-
-    # define which bboxes to load for visualization.
-    bbox_source = cfg.VISUALISATION.BBOXES_TO_LOAD
     pcds_common = load_common_pcds(bbox_source)
 
-    # Check if a single file or multiple random files should be loaded.
-    my_pcd = cfg.VISUALISATION.POINT_CLOUD_ID_TO_VISUALIZE
-
-    if my_pcd =='':
+    if my_pcd == '':
         # Load multiple random files.
         random.shuffle(pcds_common)
         pcds_selected = pcds_common[:5]
 
-        for i in range (0, (len(pcds_selected))):
-            visualize(pcds_selected[i], bbox_source)
+        for i in range(0, (len(pcds_selected))):
+            visualize_single_pcd(pcds_selected[i], bbox_source, cfg)
         print("done.")
 
     else:
         # Load single specified file.
         if my_pcd in pcds_common:
-            visualize(my_pcd, bbox_source)
+            visualize_single_pcd(my_pcd, bbox_source, cfg)
         else:
             raise ValueError('This point cloud ID is not available. Choose a different one.')
+
+
+if __name__== "__main__":
+
+    # Load EasyDict to access parameters.
+    cfg = load_config()
+
+    # Check if a single file or multiple random files should be loaded.
+    my_pcd_to_visualize = cfg.VISUALISATION.POINT_CLOUD_ID_TO_VISUALIZE
+
+    # define which bboxes to load for visualization.
+    bbox_source = cfg.VISUALISATION.BBOXES_TO_LOAD
+
+    trigger_visualization(my_pcd_to_visualize, bbox_source)
