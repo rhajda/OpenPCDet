@@ -283,3 +283,54 @@ def add_fake_element(df_group):
 
             print("df_pseudo_label: ", "\n", df_pseudo_label)
 
+
+
+### 16.06 - from majority voting:
+def subfunction_heading(cfg, df_group):
+        print("--> subfunction heading.")
+
+        headings = df_group['rot_z'].tolist()
+        heading_threshold = np.radians(cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_HEADING)
+
+        headings_dictionary = {}
+        for index, row in df_group.iterrows():
+            headings_dictionary[row['element']] = {'heading': row['rot_z'], 'similar': None}
+
+        print(headings_dictionary)
+
+        for heading in headings:
+            relevant_normalized_headings = headings.copy()  # Create a copy of the original list
+            relevant_normalized_headings.remove(heading)
+
+            # Calculate the intervals [X, X + threshold] and [X + π, X + π + threshold]
+            intervals = [np.array([heading, heading + heading_threshold]) % (2 * np.pi),
+                         np.array([heading + np.pi, heading + np.pi + heading_threshold]) % (2 * np.pi)]
+
+            mask_heading = []
+            for i in relevant_normalized_headings:
+                found_interval = False
+
+                for interval in intervals:
+
+                    # Start of interval bigger than end. --> reverse.
+                    if interval[0] > interval[1]:
+                        interval_reversed = [interval[1], interval[0]]
+                        if not interval_reversed[0] < i < interval_reversed[1]:
+                            mask_heading.append(True)
+                            found_interval = True
+                            break
+
+                    # Start of interval smaller than end.
+                    if interval[0] < interval[1]:
+                        if interval[0] <= i <= interval[1]:
+                            mask_heading.append(True)
+                            found_interval = True
+                            break
+
+                if not found_interval:
+                    mask_heading.append(False)
+
+            if all(mask_heading):
+                return intervals
+
+        return False

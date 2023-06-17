@@ -8,6 +8,7 @@ import networkx as nx
 
 
 
+
 # PCDET
 from pcdet.utils import box_utils
 from pcdet.ops.iou3d_nms import iou3d_nms_utils
@@ -79,7 +80,7 @@ def get_bbox_groups(cfg, df1, df2, df3):
             # Set the printing options
             np.set_printoptions(precision=2, suppress=True)
             print("centerpoint_distance_threshold: ", centerpoint_distance_threshold)
-            print("Detected overlaps with IoU: ", "\n", detected_overlaps)
+        print("Detected overlaps with IoU: ", "\n", detected_overlaps)
 
         return detected_overlaps
 
@@ -122,17 +123,45 @@ def get_bbox_groups(cfg, df1, df2, df3):
     df_all = pd.concat([df1, df2, df3], ignore_index=True).sort_values('label').reset_index(drop=True)
 
     # debugging
-    # df_all = df_all[(df_all['loc_x'] >= 0) & (df_all['loc_x'] <= 3)].reset_index(drop=True)
-    # Create a new row with your own values
-    #new_row = {'ID': '000618', 'label': 'Car', 'loc_x': 0, 'loc_y': 0, 'loc_z': 0, 'dim_len': 4, 'dim_wi': 1.5,
-    #           'dim_ht': 1.5, 'rot_z': (-3.141596 / 2), 'score': 0.99}
+    ########################################################################
+    add_elements = True
+    if add_elements:
+        print("FAKE ELEMENTS ACTIVE")
+
+        df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+        #df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+        df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+        #df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+        #df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+        #df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+
+        df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+        #df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+        df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+        #df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+        #df_all.loc[8, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+        #df_all.loc[10, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+
+        df_all.loc[0, ['label', 'rot_z']] = ["Car", np.radians(0)]
+        #df_all.loc[1, ['label', 'rot_z']] = ["Car", np.radians(5)]
+        df_all.loc[5, ['label', 'rot_z']] = ["Car", np.radians(40)]
+        #df_all.loc[6, ['label', 'rot_z']] = ["Car", np.radians(15)]
+        #df_all.loc[8, ['label', 'rot_z']] = ["Car", np.radians(20)]
+        #df_all.loc[10, ['label', 'rot_z']] = ["Car", np.radians(30.0001)]
+
+        #df_all = df_all[(df_all['loc_x'] >= 0) & (df_all['loc_x'] <= 10)].reset_index(drop=True)
+
+
+        print(df_all)
+        df_group_save = df_all.copy()
+        save_pseudo_labels(cfg, df_group_save)
+        print("SAVED.")
+    ########################################################################
 
     if DEBUG_MODE:
         print("df_all: ", "\n", df_all)
-
     detected_overlaps = detect_overlapping_bboxes(cfg, df_all)
     bbox_groups =  identify_independent_bbox_groups(detected_overlaps)
-
     if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
         print("Detected groups of bboxes: ", "\n", bbox_groups)
 
@@ -169,72 +198,108 @@ def majority_voting(cfg, df1, df2, df3):
 
         classes = df_group['label'].unique()
         if len(classes)== 1:
+
             return True
+
         else:
-            print("classes not okay. Implement split in classes.")
+            print("__________________________________________________________________")
+            temp_bbox_groups = []
+            temp_groups = df_group.groupby('label')['element'].apply(list).tolist()
+            temp_bbox_groups.extend(temp_groups)
+            print(temp_bbox_groups)
+
             return False
-            exit()
     # Check iou of group.
     def subfunction_iou(cfg, df_group, bbox_iou):
         print("--> subfunction iou.")
 
-        group = df_group['element'].tolist()
-
-        # get all possible combinations:
         combinations = []
+        combinations_iou = []
+        group = df_group['element'].tolist()
 
         for i in range(len(group)):
             for j in range(i + 1, len(group)):
                 combinations.append([group[i], group[j]])
 
-        combinations_iou = []
         for combination in combinations:
             combinations_iou.append(bbox_iou[combination[0]][combination[1]])
 
-        if any(element < cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_IOU for element in combinations_iou):
-            print("IoU below threshold. Implement IoU Split.")
-            return False
-            exit()
+        iou_dictionary = {tuple(combinations[k]): combinations_iou[k] for k in range(len(combinations))}
+        print(iou_dictionary)
+
+        if all(value >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_IOU for value in iou_dictionary.values()):
+            return True
 
         else:
-            return True
+            print("IoU below threshold. Implement IoU Split.")
+            if len(iou_dictionary) > 1:
+
+                graph = nx.Graph()
+                for edge, weight in iou_dictionary.items():
+                    node1, node2 = edge
+                    if weight >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_IOU:
+                        graph.add_edge(node1, node2)
+
+                components = list(nx.connected_components(graph))
+                isolated_nodes = set()
+                for node_pair in iou_dictionary.keys():
+                    isolated_nodes.update(node_pair)
+
+                isolated_nodes -= set.union(*components)
+                for node in isolated_nodes:
+                    components.append({node})
+
+                output = [list(component) for component in components]
+                print(output)
+
+            else:
+                if len(iou_dictionary)  == 1:
+                    keys = list(iou_dictionary.keys())[0]
+                    output = [[key] for key in keys]
+                    print(output)
+                else:
+                    raise TypeError("No elements in iou_dictionary.")
+
+        return False
     # Check heading of group.
     def subfunction_heading(cfg, df_group):
         print("--> subfunction heading.")
 
-        headings = df_group['rot_z'].tolist()
         heading_threshold = np.radians(cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_HEADING)
+        headings_dictionary = {}
+        for index, row in df_group.iterrows():
+            headings_dictionary[row['element']] = {'heading': row['rot_z'], 'similar': []}
 
-        #print("headings: ", headings)
-        #print("normalized_headings: ", normalized_headings)
-
-        for heading in headings:
-            relevant_normalized_headings = headings.copy()  # Create a copy of the original list
-            relevant_normalized_headings.remove(heading)
+        # Check if all headings are similar by being inside threshold intervals.
+        for element, heading_data in headings_dictionary.items():
+            heading = heading_data['heading']
+            relevant_headings_dictionary = headings_dictionary.copy()
+            del relevant_headings_dictionary[element]
 
             # Calculate the intervals [X, X + threshold] and [X + π, X + π + threshold]
-            interval1 = np.array([heading, heading + heading_threshold]) % (2 * np.pi)
-            interval2 = np.array([heading + np.pi, heading + np.pi + heading_threshold]) % (2 * np.pi)
-            intervals = [interval1, interval2]
+            intervals = [np.array([heading, heading + heading_threshold]) % (2 * np.pi),
+                         np.array([heading + np.pi, heading + np.pi + heading_threshold]) % (2 * np.pi)]
 
             mask_heading = []
-            for i in relevant_normalized_headings:
+            for relevant_element, relevant_heading_data in relevant_headings_dictionary.items():
+                relevant_heading = relevant_heading_data['heading']
                 found_interval = False
 
                 for interval in intervals:
-
                     # Start of interval bigger than end. --> reverse.
                     if interval[0] > interval[1]:
                         interval_reversed = [interval[1], interval[0]]
-                        if not interval_reversed[0] < i < interval_reversed[1]:
+                        if not interval_reversed[0] < relevant_heading < interval_reversed[1]:
                             mask_heading.append(True)
+                            headings_dictionary[element]['similar'].append(relevant_element)
                             found_interval = True
                             break
 
                     # Start of interval smaller than end.
                     if interval[0] < interval[1]:
-                        if interval[0] <= i <= interval[1]:
+                        if interval[0] <= relevant_heading <= interval[1]:
                             mask_heading.append(True)
+                            headings_dictionary[element]['similar'].append(relevant_element)
                             found_interval = True
                             break
 
@@ -243,6 +308,20 @@ def majority_voting(cfg, df1, df2, df3):
 
             if all(mask_heading):
                 return intervals
+
+        # If headings are dissimilar, split them into independent groups.
+        output = []
+        headings_dictionary = {key: value['similar'] for key, value in
+                      sorted(headings_dictionary.items(), key=lambda x: len(x[1]['similar']), reverse=True)}
+
+        while headings_dictionary:
+            key, values = next(iter(headings_dictionary.items()))
+            similar_heading_group = list(np.array([key] + values, dtype=int))
+            output.append(similar_heading_group)
+            headings_dictionary = {key: value for key, value in headings_dictionary.items() if key not in similar_heading_group}
+
+        print(output)
+
 
         return False
     # Check confidence of group.
@@ -311,8 +390,7 @@ def majority_voting(cfg, df1, df2, df3):
         # identify the majority of similar bbox headings by assigning relative headings.
         interval1 = mask[3][0]
         interval2 = mask[3][1]
-
-        print(interval1, interval2)
+        #print(interval1, interval2)
 
         df_group['relative_heading'] = None
         for i in range (len(df_group)):
@@ -343,7 +421,7 @@ def majority_voting(cfg, df1, df2, df3):
         # Find the most frequent value(s)
         most_frequent_heading = df_group['relative_heading'].value_counts()
         majority_values = most_frequent_heading[most_frequent_heading == most_frequent_heading.max()].index
-        print(majority_values)
+        #print(majority_values)
 
         # Check if there is a single majority value
         if len(majority_values) == 1:
@@ -374,30 +452,29 @@ def majority_voting(cfg, df1, df2, df3):
     # Vote a representative from multiple bboxes in group.
     def flow_manager_multiple_elements(cfg, mask, df_group, bbox_iou):
 
-        # subfunction_class: True if all bboxes of the same class, False if not.
+        # subfunction_class (True same class, False not.)
         mask.append(subfunction_class(df_group))
         if not mask[1]:
             print("Trigger temp queue. Classes not matching. ")
-            exit()
+            return False
 
-        # subfunction_iou: True if all IoUs above certain threshold, False if not.
+        # subfunction_iou (True IoUs >= threshold, False not.)
         mask.append(subfunction_iou(cfg, df_group, bbox_iou))
         if not mask[2]:
             print("Trigger temp queue. IoU not matching.")
-            exit()
+            return False
 
-        # subfunction_heading:  Intervals that include all similar headings, False if dissimilar.
+        # subfunction_heading (Intervals including all similar headings, False if dissimilar.)
         mask.append(subfunction_heading(cfg, df_group))
         if not mask[3]:
             print("Trigger temp queue. Headings not matching.")
-            exit()
+            return False
 
-        # subfunction_confidence: Mean confidence if above threshold, False if below.
+        # subfunction_confidence: (Mean confidence if > threshold, False if not.)
         mask.append(subfunction_confidence(cfg, df_group, mask))
         if not mask[4]:
             print("GROUP REJECTED.")
-            df_empty_pseudo_label = df_group.iloc[0:0].drop(['element'], axis=1).copy()
-            return df_empty_pseudo_label
+            return
 
         # subfunction_select_representative returns the most confident representative from the majority heading.
         df_single_pseudo_label = subfunction_select_representative(df_group, mask)
@@ -409,52 +486,61 @@ def majority_voting(cfg, df1, df2, df3):
         return df_single_pseudo_label
 
 
+    def flow_manager_temp_queue(cfg, mask, df_group_mismatch, bbox_iou, mismatch_type):
+        print("__________________________________________________________________")
+
+        temp_bbox_groups = []
+
+        print("flow_manager_temp_queue: ", mismatch_type)
+
+        if mismatch_type == "class":
+            print(df_group_mismatch)
+            temp_groups = df_group_mismatch.groupby('label')['element'].apply(list).tolist()
+            temp_bbox_groups.extend(temp_groups)
+
+
+        if mismatch_type == "iou":
+            print()
+
+        if mismatch_type == "heading":
+            print()
+
+        print(temp_bbox_groups)
+        print("__________________________________________________________________")
+        return
+
+
+
     def main_queue(bbox_groups):
 
+        df_pseudo_labels = pd.DataFrame()
         while bbox_groups:
 
-            # mask stores the subfunction results: ["number bboxes", "class", "IoU", "heading", "overall confidence"]
-            mask = []
-            current_group = bbox_groups.pop(2)
-            print("Voting on group: ", current_group)
-
+            current_group = bbox_groups.pop(0)
             df_group = group_to_df_group(df_all, current_group)
-
-            ########################################################################
-            add_elements = False
-            if add_elements:
-                print("FAKE ELEMENTS ACTIVE")
-
-                my_rot_0 = np.radians(40)
-                my_rot_1 = np.radians(60)
-                my_rot_2 = np.radians(220)
-
-                df_group.at[0, 'loc_x'] = 20
-                df_group.at[1, 'loc_x'] = 20
-                df_group.at[2, 'loc_x'] = 20
-
-                df_group.at[0, 'rot_z'] = my_rot_0
-                df_group.at[1, 'rot_z'] = my_rot_1
-                df_group.at[2, 'rot_z'] = my_rot_2
-
-                df_group_save = df_group.drop('element', axis=1).copy()
-                save_pseudo_labels(cfg, df_group_save)
-                print("SAVED.")
-            ########################################################################
+            print("\n", "Voting on group: ", current_group)
             print(df_group)
 
+            # mask: ["number bboxes", "class", "IoU", "heading", "overall confidence"]
+            mask = []
             mask.append(subfunction_number_bboxes(df_group))
             if mask[0] > 1:
                 print("flow_manager_multiple_elements: ")
                 df_single_pseudo_label = flow_manager_multiple_elements(cfg, mask, df_group, bbox_iou)
-                print("flow_manager_multiple_elements output: ", "\n", df_single_pseudo_label)
-
+                #print("flow_manager_multiple_elements output: ", "\n", df_single_pseudo_label)
             else:
-                print("flow_manager_single_element triggered. ")
+                print("flow_manager_single_element: ")
                 df_single_pseudo_label = flow_manager_single_element(cfg, mask, df_group)
-                print("flow_manager_single_elements output: ", "\n", df_single_pseudo_label)
+                #print("flow_manager_single_elements output: ", "\n", df_single_pseudo_label)
 
             break
+
+            df_pseudo_labels = pd.concat((df_pseudo_labels, df_single_pseudo_label), axis=0).reset_index(drop=True)
+
+        print("\n", "\n", "df_pseudo_labels: ", "\n", df_pseudo_labels)
+
+
+
 
 
     # get the bboxes, bbox IoUs, independent bbox groups

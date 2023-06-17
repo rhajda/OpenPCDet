@@ -25,10 +25,10 @@ DATA:
 
 VISUALISATION:
   # Options: ['groundtruths', 'pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
-  BBOXES_TO_LOAD: ['groundtruths', 'pointrcnn', 'pointpillar', 'second']
+  BBOXES_TO_LOAD: ['pseudo_labels']
 
   # Select the ID of a specific point cloud to visualize. If : '' -> 5 randomly selected point clouds will be displayed.
-  POINT_CLOUD_ID_TO_VISUALIZE: '000618'
+  POINT_CLOUD_ID_TO_VISUALIZE: ''
 
 
 PIPELINE:
@@ -51,20 +51,20 @@ PIPELINE:
   MAJORITY_VOTING:
     PATH_SAVE_PSEUDO_LABELS: '/home/autolabel_pipeline/predictions/pseudo_labels/majority_voting'
 
-    THRESHOLD_IOU: 0.5    # %
-    THRESHOLD_HEADING: 30.00001   # degrees
+    THRESHOLD_IOU: 0.3
+    THRESHOLD_HEADING: 30  # degrees
 
     THRESHOLD_3_BBOXES:
-      CONFIDENCE_CAR: 0.9
+      CONFIDENCE_CAR: 0.7
       CONFIDENCE_CYCLIST: 0.7
       CONFIDENCE_PEDESTRIAN: 0.7
 
     THRESHOLD_2_BBOXES:
-      CONFIDENCE_CAR: 0.99
+      CONFIDENCE_CAR: 0.8
       CONFIDENCE_CYCLIST: 0.8
       CONFIDENCE_PEDESTRIAN: 0.8
 
     THRESHOLD_1_BBOX:
-      CONFIDENCE_CAR: 0.7
+      CONFIDENCE_CAR: 1
       CONFIDENCE_CYCLIST: 1
       CONFIDENCE_PEDESTRIAN: 1
