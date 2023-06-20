@@ -48,8 +48,6 @@ def load_config():
 
     cfg = EasyDict(cfg_dict)
     return cfg
-
-
 # Function loads csv data of a specific frame to a dataframe containing all bboxes
 def csv_to_dataframe(path_data, file_name):
 
@@ -73,8 +71,6 @@ def csv_to_dataframe(path_data, file_name):
     df[df.columns[2:]] = df[df.columns[2:]].astype(float)
 
     return df
-
-
 # Function that loads the bboxes predicted for a frame ID to dataframe for every model.
 def load_frame_predictions(frame_ID, path_frames):
 
@@ -91,12 +87,10 @@ def load_frame_predictions(frame_ID, path_frames):
 if __name__ == "__main__":
 
     # Choose element to display '000618',  '003658', '003676', '004769'
-    frame_ID = '000618'
+    frame_ID = '003676'
 
     # Load EasyDict to access parameters.
     cfg = load_config()
-
-
 
     # Load all predicted frame IDs (ptrcnn & ptpillar & second)
     ptrcnn_all_frame_IDs, df_ptrcnn= load_frame_predictions(frame_ID, cfg.DATA.PATH_PTRCNN_PREDICTIONS)
@@ -108,14 +102,11 @@ if __name__ == "__main__":
         print("df_ptpillar: ", "\n", df_ptpillar)
         print("df_second: ", "\n", df_second)
 
-    ## TEST nms_standard.
-    #nms_voting.non_maximum_suppression_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
+    # nms_voting.
+    nms_voting.non_maximum_suppression_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
 
-    ## TEST majority_voting.
-    majority_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
-
-    ## TEST test_voting.
-    #test_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second)
+    # majority_voting.
+    #majority_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
 
 
     if cfg.PIPELINE.SHOW_POINT_CLOUDS:

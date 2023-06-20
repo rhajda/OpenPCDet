@@ -7,14 +7,20 @@ import os
 
 from pcdet.ops.iou3d_nms import iou3d_nms_utils
 
+# Prints additional information when True.
+DEBUG_MODE = False
 
-def non_maximum_suppression_voting(cfg, df1, df2, df3):
-
-    # Prints additional information when True.
-    DEBUG_MODE = False
+# Function performs non-maximum suppression voting on a frame.
+def non_maximum_suppression_voting(cfg, df1, df2, df3, frame_ID):
 
     if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
-        print("\n","--> nms_voting triggered: ")
+        print("\n","==> nms_voting : ")
+
+    if df1.empty and df2.empty and df3.empty:
+        save_pseudo_labels(cfg, pd.DataFrame(), frame_ID)
+        if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
+            print("No bbox proposals. Saved empty frame", frame_ID)
+        return
 
     # Gather all bboxes to one df
     df_all = pd.concat([df1, df2, df3], ignore_index=True)
@@ -56,14 +62,19 @@ def non_maximum_suppression_voting(cfg, df1, df2, df3):
 
             df_pseudo_labels = pd.concat([df_pseudo_labels, df_class], ignore_index=True)
 
-    # Save pseudo-labels as csv to folder.
-    if not os.path.exists(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS):
-        os.makedirs(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS)
-
-    csv_filename = df_pseudo_labels.iloc[0, 0] + '.csv'
-    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS, csv_filename),
-                                        index=False, header=False)
+    save_pseudo_labels(cfg, df_pseudo_labels, frame_ID)
 
     if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
         print("df_pseudo_labels: ", "\n", df_pseudo_labels)
         print("nms_voting done. ")
+
+
+# Function saves a dataframe with pseudo labels to csv.
+def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID):
+    # Save pseudo-labels as csv to folder.
+    if not os.path.exists(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS):
+        os.makedirs(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS)
+
+    csv_filename = frame_ID + '.csv'
+    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS, csv_filename),
+                                        index=False, header=False)

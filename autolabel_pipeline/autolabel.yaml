@@ -13,27 +13,24 @@ DATA:
   # Paths to point clouds / ground truths
   PATH_POINT_CLOUDS: "/home/data/autolabel/training/velodyne"
   PATH_GROUND_TRUTHS: "/home/data/autolabel/training/label_2"
-
   # Path to frame predictions
   PATH_PTRCNN_PREDICTIONS: "/home/autolabel_pipeline/predictions/pointrcnn/epoch_74"
   PATH_PTPILLAR_PREDICTIONS: "/home/autolabel_pipeline/predictions/pointpillar/epoch_75"
   PATH_SECOND_PREDICTIONS: "/home/autolabel_pipeline/predictions/second/epoch_80"
-
   # Path to pseudo_labels
-  PATH_PSEUDO_LABELS: "/home/autolabel_pipeline/predictions/pseudo_labels/majority_voting"
+  PATH_PSEUDO_LABELS: "/home/autolabel_pipeline/predictions/pseudo_labels/nms_voting"
 
 
 VISUALISATION:
   # Options: ['groundtruths', 'pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
-  BBOXES_TO_LOAD: ['pseudo_labels']
-
+  BBOXES_TO_LOAD: ['groundtruths', 'pseudo_labels']
   # Select the ID of a specific point cloud to visualize. If : '' -> 5 randomly selected point clouds will be displayed.
   POINT_CLOUD_ID_TO_VISUALIZE: ''
 
 
 PIPELINE:
   SHOW_POINT_CLOUDS: False
-  PRINT_INFORMATION: False
+  PRINT_INFORMATION: True
   CLASSES: ['Car', 'Pedestrian', 'Cyclist']
 
   # Voting scheme NMS + confidence score.
@@ -55,16 +52,16 @@ PIPELINE:
     THRESHOLD_HEADING: 30  # degrees
 
     THRESHOLD_3_BBOXES:
-      CONFIDENCE_CAR: 0.7
-      CONFIDENCE_CYCLIST: 0.7
-      CONFIDENCE_PEDESTRIAN: 0.7
+      CONFIDENCE_CAR: 0.6
+      CONFIDENCE_CYCLIST: 0.5
+      CONFIDENCE_PEDESTRIAN: 0.5
 
     THRESHOLD_2_BBOXES:
-      CONFIDENCE_CAR: 0.8
-      CONFIDENCE_CYCLIST: 0.8
-      CONFIDENCE_PEDESTRIAN: 0.8
+      CONFIDENCE_CAR: 0.9
+      CONFIDENCE_CYCLIST: 0.9
+      CONFIDENCE_PEDESTRIAN: 0.9
 
     THRESHOLD_1_BBOX:
       CONFIDENCE_CAR: 1
-      CONFIDENCE_CYCLIST: 1
-      CONFIDENCE_PEDESTRIAN: 1
+      CONFIDENCE_CYCLIST: 0.95
+      CONFIDENCE_PEDESTRIAN: 0.95
