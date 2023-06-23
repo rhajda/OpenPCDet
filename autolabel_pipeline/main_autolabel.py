@@ -9,7 +9,7 @@ import os
 # Import visualization functions
 from visualize_pcds import get_file_names, visualize_single_pcd
 # Import voting schemes
-from voting_schemes import nms_voting, majority_voting, test_voting
+from voting_schemes import nms_voting, majority_voting
 
 
 # Define a working path used to access different paths
@@ -103,13 +103,12 @@ if __name__ == "__main__":
         print("df_second: ", "\n", df_second)
 
     # nms_voting.
-    nms_voting.non_maximum_suppression_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
+    #nms_voting.non_maximum_suppression_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
 
     # majority_voting.
-    #majority_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
+    majority_voting.majority_voting(cfg, df_ptrcnn, df_ptpillar, df_second, frame_ID)
 
 
     if cfg.PIPELINE.SHOW_POINT_CLOUDS:
         print("\n", "Visualization triggered:")
         visualize_single_pcd(frame_ID, cfg.VISUALISATION.BBOXES_TO_LOAD, cfg)
-

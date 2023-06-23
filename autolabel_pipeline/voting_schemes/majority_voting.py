@@ -6,16 +6,12 @@ import torch
 import pandas as pd
 import networkx as nx
 
-
-
-
-
 # PCDET
 from pcdet.utils import box_utils
 from pcdet.ops.iou3d_nms import iou3d_nms_utils
 
 # Print additional information for debugging
-DEBUG_MODE = False
+DEBUG_MODE = True
 # ADD FAKE ELEMENTS FOR DEBUGGING
 ADD_ELEMENTS = False
 
@@ -26,23 +22,23 @@ def add_fake_elements(cfg, df_all, frame_ID):
     print("FAKE ELEMENTS ACTIVE")
 
     df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
-    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0.7, 0, 0]
-    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [2.7, 0, 0]
+    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
 
-    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
-    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
-    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
-    df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
+    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
+    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
+    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
+    df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
     # df_all.loc[8, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
     # df_all.loc[10, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
 
     df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.5]
-    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(60), 0.94]
-    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(60), 0.96]
-    df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.5]
+    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.4]
+    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.6]
+    df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(270), 0.7]
     # df_all.loc[8, ['label', 'rot_z', 'score']] = ["Car", np.radians(55), 0.9]
     # df_all.loc[10, ['label', 'rot_z', 'score']] = ["Car", np.radians(30.0001), 0.9]
 
@@ -619,6 +615,3 @@ def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID):
     csv_filename = frame_ID + '.csv'
     df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS, csv_filename),
                                         index=False, header=False)
-
-
-

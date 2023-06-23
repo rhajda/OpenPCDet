@@ -18,18 +18,19 @@ DATA:
   PATH_PTPILLAR_PREDICTIONS: "/home/autolabel_pipeline/predictions/pointpillar/epoch_75"
   PATH_SECOND_PREDICTIONS: "/home/autolabel_pipeline/predictions/second/epoch_80"
   # Path to pseudo_labels
-  PATH_PSEUDO_LABELS: "/home/autolabel_pipeline/predictions/pseudo_labels/nms_voting"
+  PATH_PSEUDO_LABELS: "/home/autolabel_pipeline/predictions/pseudo_labels/majority_voting"
+  #PATH_PSEUDO_LABELS: "/home/autolabel_pipeline/predictions/pseudo_labels/nms_voting"
 
 
 VISUALISATION:
   # Options: ['groundtruths', 'pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
-  BBOXES_TO_LOAD: ['groundtruths', 'pseudo_labels']
+  BBOXES_TO_LOAD: ['groundtruths','pointrcnn', 'pointpillar', 'second']
   # Select the ID of a specific point cloud to visualize. If : '' -> 5 randomly selected point clouds will be displayed.
   POINT_CLOUD_ID_TO_VISUALIZE: ''
 
 
 PIPELINE:
-  SHOW_POINT_CLOUDS: False
+  SHOW_POINT_CLOUDS: True
   PRINT_INFORMATION: True
   CLASSES: ['Car', 'Pedestrian', 'Cyclist']
 
@@ -39,8 +40,8 @@ PIPELINE:
     THRESHOLD_NMS_OVERLAP: 0.5  # taken from PTRCNN at inference
 
     THRESHOLD_CONFIDENCE_CAR: 0.85
-    THRESHOLD_CONFIDENCE_CYCLIST: 0
-    THRESHOLD_CONFIDENCE_PEDESTRIAN: 0.6
+    THRESHOLD_CONFIDENCE_CYCLIST: 0.7
+    THRESHOLD_CONFIDENCE_PEDESTRIAN: 0.7
 
 
 
@@ -48,11 +49,11 @@ PIPELINE:
   MAJORITY_VOTING:
     PATH_SAVE_PSEUDO_LABELS: '/home/autolabel_pipeline/predictions/pseudo_labels/majority_voting'
 
-    THRESHOLD_IOU: 0.3
-    THRESHOLD_HEADING: 30  # degrees
+    THRESHOLD_IOU: 0.3            # %
+    THRESHOLD_HEADING: 30         # degrees
 
     THRESHOLD_3_BBOXES:
-      CONFIDENCE_CAR: 0.6
+      CONFIDENCE_CAR: 0.8
       CONFIDENCE_CYCLIST: 0.5
       CONFIDENCE_PEDESTRIAN: 0.5
 
