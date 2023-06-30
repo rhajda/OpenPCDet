@@ -47,18 +47,18 @@ def non_maximum_suppression_voting(cfg, df1, df2, df3, frame_ID):
 
             boxes = torch.stack(bbox_list, dim=0).float().cuda()
             scores = torch.stack(score_list, dim=0).float().cuda()
-            representatives = iou3d_nms_utils.nms_gpu(boxes, scores, cfg.PIPELINE.NMS_VOTING.THRESHOLD_NMS_OVERLAP)[0].tolist()
+            representatives = iou3d_nms_utils.nms_gpu(boxes, scores, cfg.PIPELINE.NMS_VOTING.THRESHOLDS.THRESHOLD_NMS_OVERLAP)[0].tolist()
             df_class = df_class.loc[representatives]
 
             # filter out bboxes with insufficient confidence score:
             if cfg.PIPELINE.CLASSES[object_class] == 'Car':
-                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLD_CONFIDENCE_CAR]
+                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLDS.THRESHOLD_CONFIDENCE_CAR]
 
             if cfg.PIPELINE.CLASSES[object_class] == 'Pedestrian':
-                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLD_CONFIDENCE_PEDESTRIAN]
+                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLDS.THRESHOLD_CONFIDENCE_PEDESTRIAN]
 
             if cfg.PIPELINE.CLASSES[object_class] == 'Cyclist':
-                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLD_CONFIDENCE_CYCLIST]
+                df_class = df_class[df_class.score >= cfg.PIPELINE.NMS_VOTING.THRESHOLDS.THRESHOLD_CONFIDENCE_CYCLIST]
 
             df_pseudo_labels = pd.concat([df_pseudo_labels, df_class], ignore_index=True)
 

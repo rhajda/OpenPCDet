@@ -75,11 +75,16 @@ def predict_single_ckpt(model, dataloader, args, predict_output_dir, logger, epo
 
     for i, batch_dict in enumerate(dataloader):
 
+        print(batch_dict)
+
         frame_ids = batch_dict['frame_id']
         load_data_to_gpu(batch_dict)
 
         with torch.no_grad():
             pred_dicts, ret_dict, feat = model(batch_dict)
+
+            print(pred_dicts, ret_dict)
+            exit()
 
 
             for j in range(0, len(frame_ids)):

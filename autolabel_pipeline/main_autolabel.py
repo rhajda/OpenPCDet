@@ -87,7 +87,7 @@ def load_frame_predictions(frame_ID, path_frames):
 if __name__ == "__main__":
 
     # Choose element to display '000618',  '003658', '003676', '004769'
-    frame_ID = '003676'
+    frame_ID = '000618'
 
     # Load EasyDict to access parameters.
     cfg = load_config()

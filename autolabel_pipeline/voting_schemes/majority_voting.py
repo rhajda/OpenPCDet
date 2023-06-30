@@ -11,9 +11,10 @@ from pcdet.utils import box_utils
 from pcdet.ops.iou3d_nms import iou3d_nms_utils
 
 # Print additional information for debugging
-DEBUG_MODE = True
+DEBUG_MODE = False
 # ADD FAKE ELEMENTS FOR DEBUGGING
 ADD_ELEMENTS = False
+
 
 
 # Function that adds fake elements to be processed.
@@ -21,24 +22,24 @@ def add_fake_elements(cfg, df_all, frame_ID):
     print("__________________________________________________________________")
     print("FAKE ELEMENTS ACTIVE")
 
-    df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
-    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
-    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+    df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
+    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
+    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [1, 0, 0]
     df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
 
-    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
-    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
-    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
-    df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [1, 1, 1]
+    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
     # df_all.loc[8, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
     # df_all.loc[10, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
 
-    df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.5]
-    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.4]
-    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.6]
-    df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(270), 0.7]
+    df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.96]
+    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.96]
+    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
+    df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
     # df_all.loc[8, ['label', 'rot_z', 'score']] = ["Car", np.radians(55), 0.9]
     # df_all.loc[10, ['label', 'rot_z', 'score']] = ["Car", np.radians(30.0001), 0.9]
 
@@ -46,8 +47,8 @@ def add_fake_elements(cfg, df_all, frame_ID):
 
     print(df_all)
     df_group_save = df_all.copy()
-    save_pseudo_labels(cfg, df_group_save, frame_ID)
-    print("SAVED.")
+    #save_pseudo_labels(cfg, df_group_save, frame_ID, [False])
+    #print("SAVED.")
     print("__________________________________________________________________")
 
     return df_all
@@ -212,7 +213,7 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
             combinations_iou.append(bbox_iou[combination[0]][combination[1]])
         iou_dictionary = {tuple(combinations[k]): combinations_iou[k] for k in range(len(combinations))}
 
-        if all(value >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_IOU for value in iou_dictionary.values()):
+        if all(value >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU for value in iou_dictionary.values()):
             return True, None
 
         else:
@@ -220,7 +221,7 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 graph = nx.Graph()
                 for edge, weight in iou_dictionary.items():
                     node1, node2 = edge
-                    if weight >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_IOU:
+                    if weight >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU:
                         graph.add_edge(node1, node2)
 
                 components = list(nx.connected_components(graph))
@@ -228,7 +229,8 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 for node_pair in iou_dictionary.keys():
                     isolated_nodes.update(node_pair)
 
-                isolated_nodes -= set.union(*components)
+                # isolated_nodes keeps only isolated nodes.
+                isolated_nodes -= set.union(*components) if components else set()
                 for node in isolated_nodes:
                     components.append({node})
 
@@ -248,7 +250,7 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
         if DEBUG_MODE: print("-> subfunction heading.")
 
-        heading_threshold = np.radians(cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_HEADING)
+        heading_threshold = np.radians(cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_HEADING)
         headings_dictionary = {}
         for index, row in df_group.iterrows():
             headings_dictionary[row['element']] = {'heading': row['rot_z'], 'similar': []}
@@ -315,17 +317,17 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
         if object_type == 'Car':
             # Car; 3 BBOXES
             if mask[0] >=3:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_3_BBOXES.CONFIDENCE_CAR:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_3_BBOXES.CONFIDENCE_CAR:
                     return object_average
                 else: return False
             # Car; 2 BBOXES
             if mask[0] == 2:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_2_BBOXES.CONFIDENCE_CAR:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_2_BBOXES.CONFIDENCE_CAR:
                     return object_average
                 else:  return False
             # Car; 1 BBOX
             if mask[0] == 1:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_1_BBOX.CONFIDENCE_CAR:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_1_BBOX.CONFIDENCE_CAR:
                     return object_average
                 else: return False
 
@@ -333,17 +335,17 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
             # Cyclist; 3 BBOXES
             if mask[0] >= 3:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_3_BBOXES.CONFIDENCE_CYCLIST:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_3_BBOXES.CONFIDENCE_CYCLIST:
                     return object_average
                 else: return False
             # Cyclist; 2 BBOXES
             if mask[0] == 2:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_2_BBOXES.CONFIDENCE_CYCLIST:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_2_BBOXES.CONFIDENCE_CYCLIST:
                     return object_average
                 else: return False
             # Cyclist; 1 BBOX
             if mask[0] == 1:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_1_BBOX.CONFIDENCE_CYCLIST:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_1_BBOX.CONFIDENCE_CYCLIST:
                     return object_average
                 else: return False
 
@@ -351,17 +353,17 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
             # Pedestrian; 3 BBOXES
             if mask[0] >= 3:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_3_BBOXES.CONFIDENCE_PEDESTRIAN:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_3_BBOXES.CONFIDENCE_PEDESTRIAN:
                     return object_average
                 else: return False
             # Pedestrian; 2 BBOXES
             if mask[0] == 2:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_2_BBOXES.CONFIDENCE_PEDESTRIAN:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_2_BBOXES.CONFIDENCE_PEDESTRIAN:
                     return object_average
                 else: return False
             # Pedestrian; 1 BBOX
             if mask[0] == 1:
-                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLD_1_BBOX.CONFIDENCE_PEDESTRIAN:
+                if object_average >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_1_BBOX.CONFIDENCE_PEDESTRIAN:
                     return object_average
                 else: return False
     # Get representative from group.
@@ -417,6 +419,7 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
         # Select one random row if multiple rows have the same max score
         if len(df_single_pseudo_label) > 1:
             df_single_pseudo_label = df_single_pseudo_label.sample(n=1)
+            FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL[0] = True
 
         return df_single_pseudo_label
 
@@ -559,6 +562,7 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 # Select one random row if multiple rows have the same max score
                 if len(df_rep_pseudo_label) > 1:
                     df_rep_pseudo_label = df_rep_pseudo_label.sample(n=1)
+                    FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL[0] = True
 
                 df_rep_pseudo_labels = pd.concat((df_rep_pseudo_labels, df_rep_pseudo_label), axis=0).reset_index(drop=True)
 
@@ -572,8 +576,11 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
 
 
+    # Define a flag that labels highly uncertain pseudo-labels to be saved separately.
+    FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL = [False]
+
     if df1.empty and df2.empty and df3.empty:
-        save_pseudo_labels(cfg, pd.DataFrame(), frame_ID)
+        save_pseudo_labels(cfg, pd.DataFrame(), frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
         if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
             print("No bbox proposals. Saved empty frame", frame_ID)
         return
@@ -601,17 +608,28 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
             if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
                 print("\n", "\n", "df_pseudo_labels: ", "\n", "empty dataframe")
 
-        save_pseudo_labels(cfg, df_pseudo_labels, frame_ID)
+        save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
         if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
             print("Pseudo-labels saved for frame ", frame_ID)
 
 
 # Function saves a dataframe with pseudo labels to csv.
-def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID):
+def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, flag_uncertain_label):
+
     # Save pseudo-labels as csv to folder.
     if not os.path.exists(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS):
         os.makedirs(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS)
 
+    # Switch paths for flag_uncertain_label True/ False.
+    if not flag_uncertain_label[0]:
+        path_to_save = cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS
+    else:
+        path_to_save = os.path.join(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS, 'control' )
+        # Create path if non-existent
+        if not os.path.exists(path_to_save):
+            os.makedirs(path_to_save)
+
+    # Save pseudo-label to regular folder
     csv_filename = frame_ID + '.csv'
-    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS, csv_filename),
-                                        index=False, header=False)
+    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(path_to_save, csv_filename), index=False, header=False)
+
