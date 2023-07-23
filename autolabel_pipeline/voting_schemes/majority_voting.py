@@ -22,36 +22,45 @@ def add_fake_elements(cfg, df_all, frame_ID):
     print("__________________________________________________________________")
     print("FAKE ELEMENTS ACTIVE")
 
-    df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
-    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
-    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [1, 0, 0]
-    df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+    # Remove all rows except specific ones:
+    # List of indices to keep
+    indices_to_keep = [11, 6, 15]
+    df_all = df_all.drop(df_all.index.difference(indices_to_keep))
+    df_all = df_all.reset_index(drop=True)
+
+
+    # Change values of existing rows.
+    #df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
+    #df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
+    #df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [1, 0, 0]
+    #df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
     # df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
 
-    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
-    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
-    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
-    df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    #df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    #df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    #df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    #df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
     # df_all.loc[8, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
     # df_all.loc[10, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
 
-    df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.96]
-    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.96]
-    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
-    df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
+    #df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.96]
+    #df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.96]
+    #df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
+    #df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
     # df_all.loc[8, ['label', 'rot_z', 'score']] = ["Car", np.radians(55), 0.9]
     # df_all.loc[10, ['label', 'rot_z', 'score']] = ["Car", np.radians(30.0001), 0.9]
 
-    df_all = df_all[(df_all['loc_x'] >= 0) & (df_all['loc_x'] <= 10)].reset_index(drop=True)
+    #df_all = df_all[(df_all['loc_x'] >= 0) & (df_all['loc_x'] <= 10)].reset_index(drop=True)
 
     print(df_all)
     df_group_save = df_all.copy()
-    #save_pseudo_labels(cfg, df_group_save, frame_ID, [False])
-    #print("SAVED.")
+    save_pseudo_labels(cfg, df_group_save, frame_ID, [False])
+    print("SAVED.")
     print("__________________________________________________________________")
 
     return df_all
+
 
 # Function that computes the euclidian distance between two points.
 def compute_euclidian_distance(point1, point2):
@@ -199,6 +208,25 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
     # Check iou of group.
     def subfunction_iou(cfg, df_group, bbox_iou):
 
+        def weighted_graph(connection_dictionary, weight_threshold):
+            graph = nx.Graph()
+            for edge, weight in connection_dictionary.items():
+                node1, node2 = edge
+                if weight >= weight_threshold:
+                    graph.add_edge(node1, node2)
+
+            components = list(nx.connected_components(graph))
+            isolated_nodes = set()
+            for node_pair in connection_dictionary.keys():
+                isolated_nodes.update(node_pair)
+
+            # isolated_nodes keeps only isolated nodes.
+            isolated_nodes -= set.union(*components) if components else set()
+            for node in isolated_nodes:
+                components.append({node})
+
+            return [list(component) for component in components]
+
         if DEBUG_MODE: print("-> subfunction iou.")
 
         combinations = []
@@ -218,31 +246,43 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
         else:
             if len(iou_dictionary) > 1:
-                graph = nx.Graph()
-                for edge, weight in iou_dictionary.items():
-                    node1, node2 = edge
-                    if weight >= cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU:
-                        graph.add_edge(node1, node2)
+                temp_iou_bbox_groups = weighted_graph(iou_dictionary,
+                                                      cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU)
 
-                components = list(nx.connected_components(graph))
-                isolated_nodes = set()
-                for node_pair in iou_dictionary.keys():
-                    isolated_nodes.update(node_pair)
+                # Check for circular dependencies where edges below threshold are kept in the sets.
+                if (np.array(temp_iou_bbox_groups, dtype=object).shape == (1, len(iou_dictionary))):
+                    if DEBUG_MODE: print("Circular dependencies in Bbox set. Separating: ", temp_iou_bbox_groups)
 
-                # isolated_nodes keeps only isolated nodes.
-                isolated_nodes -= set.union(*components) if components else set()
-                for node in isolated_nodes:
-                    components.append({node})
+                    weak_edges = [key for key, value in iou_dictionary.items() if value < cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU]
+                    subset_single_weak_connection = []
+                    for weak_edge in weak_edges:
+                        mean_node_strength = []
 
-                temp_iou_bbox_groups = [list(component) for component in components]
+                        for node in weak_edge:
+                            node_weights = [value for key, value in iou_dictionary.items() if node in key]
+                            average_connection_strength = np.mean(node_weights)
+                            mean_node_strength.append(average_connection_strength)
+
+                        weakest_node = weak_edge[mean_node_strength.index(min(mean_node_strength))]
+                        subset_single_weak_connection.append(weakest_node)
+
+                    filtered_iou_dictionary = {k: v for k, v in iou_dictionary.items() if not any(node in k for node in subset_single_weak_connection)}
+                    subset_strong_bbox_groups = weighted_graph(filtered_iou_dictionary,
+                                                          cfg.PIPELINE.MAJORITY_VOTING.THRESHOLDS.THRESHOLD_IOU)
+                    temp_iou_bbox_groups = subset_strong_bbox_groups
+                    for single_weak_node in subset_single_weak_connection:
+                        temp_iou_bbox_groups.extend([[single_weak_node]])
+
+                    if DEBUG_MODE: print("Separated into: ", temp_iou_bbox_groups)
 
             else:
                 if len(iou_dictionary)  == 1:
                     keys = list(iou_dictionary.keys())[0]
                     temp_iou_bbox_groups = [[key] for key in keys]
-                    print(temp_iou_bbox_groups)
+                    #print(temp_iou_bbox_groups)
                 else:
                     raise TypeError("No elements in iou_dictionary.")
+
 
         return False, temp_iou_bbox_groups
     # Check heading of group.
@@ -611,20 +651,18 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
         save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
         if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
             print("Pseudo-labels saved for frame ", frame_ID)
-
-
 # Function saves a dataframe with pseudo labels to csv.
 def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, flag_uncertain_label):
 
     # Save pseudo-labels as csv to folder.
-    if not os.path.exists(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS):
-        os.makedirs(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS)
+    if not os.path.exists(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY):
+        os.makedirs(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY)
 
     # Switch paths for flag_uncertain_label True/ False.
     if not flag_uncertain_label[0]:
-        path_to_save = cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS
+        path_to_save = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
     else:
-        path_to_save = os.path.join(cfg.PIPELINE.MAJORITY_VOTING.PATH_SAVE_PSEUDO_LABELS, 'control' )
+        path_to_save = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control' )
         # Create path if non-existent
         if not os.path.exists(path_to_save):
             os.makedirs(path_to_save)
@@ -632,4 +670,3 @@ def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, flag_uncertain_label):
     # Save pseudo-label to regular folder
     csv_filename = frame_ID + '.csv'
     df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(path_to_save, csv_filename), index=False, header=False)
-
