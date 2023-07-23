@@ -72,9 +72,9 @@ def non_maximum_suppression_voting(cfg, df1, df2, df3, frame_ID):
 # Function saves a dataframe with pseudo labels to csv.
 def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID):
     # Save pseudo-labels as csv to folder.
-    if not os.path.exists(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS):
-        os.makedirs(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS)
+    if not os.path.exists(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS):
+        os.makedirs(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS)
 
     csv_filename = frame_ID + '.csv'
-    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.PIPELINE.NMS_VOTING.PATH_SAVE_PSEUDO_LABELS, csv_filename),
-                                        index=False, header=False)
+    df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS,
+                                                     csv_filename), index=False, header=False)
