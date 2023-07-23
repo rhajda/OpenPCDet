@@ -76,7 +76,21 @@ def load_common_pcds(bbox_source):
                 bbox_source_elements.append(second_file_names)
 
             if element == 'pseudo_labels':
-                pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS, '.csv')
+
+                if cfg.PIPELINE.VOTING_SCHEME == 'NMS':
+                    pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, '.csv')
+                    if os.path.exists(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, 'control')):
+                        pseudo_labels_file_names_control = get_file_names(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS,
+                                                                                       'control'), '.csv')
+                        pseudo_labels_file_names += pseudo_labels_file_names_control
+
+                elif cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
+                    pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, '.csv')
+                    if os.path.exists(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control')):
+                        pseudo_labels_file_names_control = get_file_names(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY,
+                                                                                       'control'), '.csv')
+                        pseudo_labels_file_names += pseudo_labels_file_names_control
+
                 bbox_source_elements.append(pseudo_labels_file_names)
 
     # Load point clouds / Groundtruth data / Point-rcnn data:
@@ -217,6 +231,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
             gt_labels = gt_array[:, 0]
             gt_boxes = gt_array[:, 1:].astype(float)
             gt_boxes = gt_boxes[gt_labels != 'DontCare']
+            #gt_boxes = gt_boxes[gt_labels == 'Car']
             # Convert groundtruth boxes to format: X,Y,Z,L,W,H,RotY
             gt_boxes_reformatted = np.zeros((gt_boxes.shape[0], 7))
             gt_boxes_reformatted[:, 0] = gt_boxes[:, 10]  # loc_x
@@ -289,7 +304,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
         if element == 'second':
             second_file = os.path.join(cfg.DATA.PATH_SECOND_PREDICTIONS, single_pcd + ".csv")
 
-            # Predicted bounding boxes POINT-PILLAR
+            # Predicted bounding boxes SECOND
             second_pred_array = np.genfromtxt(second_file, delimiter=',', dtype=str)
 
             if np.size(second_pred_array) == 0:
@@ -312,9 +327,19 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
             # print("Second ID: ", ppillar_file)
 
         if element == 'pseudo_labels':
-            pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS, single_pcd + ".csv")
 
-            # Predicted bounding boxes POINT-PILLAR
+            if cfg.PIPELINE.VOTING_SCHEME == 'NMS':
+                pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, single_pcd + ".csv")
+
+            elif cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
+                pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, single_pcd + ".csv")
+                if not os.path.exists(pseudo_label_file):
+                    pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control', single_pcd + ".csv")
+            else:
+                raise ValueError("Selected VOTING_SCHEME not valid. ")
+
+
+            # Predicted bounding boxes PSEUDO_LABELS
             pseudo_label_pred_array = np.genfromtxt(pseudo_label_file, delimiter=',', dtype=str)
 
             if np.size(pseudo_label_pred_array) == 0:
