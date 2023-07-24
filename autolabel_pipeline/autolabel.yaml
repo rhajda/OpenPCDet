@@ -1,5 +1,3 @@
-
-
 # FILE DESCRIPTION:
 # This file serves as a centralized configuration file for the autolabel pipeline.
 # Parameters are divided as follows:
@@ -12,6 +10,7 @@
 # Paths to point clouds / ground truths
 # Path to frame predictions
 # Path to pseudo_labels
+
 DATA:
   PATH_POINT_CLOUDS: "/home/data/autolabel/training/velodyne"
   PATH_GROUND_TRUTHS: "/home/data/autolabel/training/label_2"
@@ -27,15 +26,17 @@ DATA:
 
 # Options: ['groundtruths', 'pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
 # Select ID of a specific point cloud to visualize. If : '' -> 5 randomly selected point clouds will be visualized.
+
 VISUALISATION:
-  BBOXES_TO_LOAD: ['pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
-  POINT_CLOUD_ID_TO_VISUALIZE: '000065'
+  BBOXES_TO_LOAD: ['groundtruths', 'pointpillar']
+  POINT_CLOUD_ID_TO_VISUALIZE: ''
 
 
 # VOTING_SCHEME: 'MAJORITY' or 'NMS'
+
 PIPELINE:
   VOTING_SCHEME: 'MAJORITY'
-  SHOW_POINT_CLOUDS: False
+  SHOW_POINT_CLOUDS: True
   PRINT_INFORMATION: False
 
   CLASSES: ['Car', 'Pedestrian', 'Cyclist']

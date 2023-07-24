@@ -8,19 +8,106 @@ import pathlib
 import numba
 import yaml
 import os
+# Import visualization functions
+from visualize_pcds import visualize_single_pcd
+from main_autolabel import csv_to_dataframe, common_set_between_datasets
+
 from pcdet.datasets.autolabel.kitti_object_eval_python.kitti_common import get_image_index_str
 from pcdet.datasets.autolabel.kitti_object_eval_python.rotate_iou import rotate_iou_gpu_eval
-from pcdet.datasets.autolabel.kitti_object_eval_python.eval import get_thresholds, clean_data, image_box_overlap, bev_box_overlap, d3_box_overlap_kernel, d3_box_overlap, get_split_parts, calculate_iou_partly, _prepare_data, get_mAP, get_mAP_R40, print_str
-from main_autolabel import csv_to_dataframe, common_set_between_datasets
+from pcdet.datasets.autolabel.kitti_object_eval_python.eval import get_thresholds, clean_data, image_box_overlap, bev_box_overlap, d3_box_overlap_kernel, d3_box_overlap, get_split_parts, _prepare_data, get_mAP, get_mAP_R40, print_str
 
 # Define a working path used to access different paths
 working_path = pathlib.Path(__file__).resolve().parents[1]
 
 
+
+
+## Adapted from PCDET
+# Function from pcdet, adapted for autolabel
+def calculate_iou_partly(gt_annos, dt_annos, metric, num_parts=50):
+    """fast iou algorithm. this function can be used independently to
+    do result analysis. Must be used in CAMERA coordinate system.
+    Args:
+        gt_annos: dict, must from get_label_annos() in kitti_common.py
+        dt_annos: dict, must from get_label_annos() in kitti_common.py
+        metric: eval type. 0: bbox, 1: bev, 2: 3d
+        num_parts: int. a parameter for fast calculate algorithm
+    """
+    print("here")
+    assert len(gt_annos) == len(dt_annos)
+    total_dt_num = np.stack([len(a["name"]) for a in dt_annos], 0)
+    total_gt_num = np.stack([len(a["name"]) for a in gt_annos], 0)
+    num_examples = len(gt_annos)
+    split_parts = get_split_parts(num_examples, num_parts)
+    parted_overlaps = []
+    example_idx = 0
+
+    for num_part in split_parts:
+        gt_annos_part = gt_annos[example_idx:example_idx + num_part]
+        dt_annos_part = dt_annos[example_idx:example_idx + num_part]
+        if metric == 0:
+            gt_boxes = np.concatenate([a["bbox"] for a in gt_annos_part], 0)
+            dt_boxes = np.concatenate([a["bbox"] for a in dt_annos_part], 0)
+            overlap_part = image_box_overlap(gt_boxes, dt_boxes)
+        elif metric == 1:
+            loc = np.concatenate(
+                [a["location"][:, [0, 2]] for a in gt_annos_part], 0)
+            dims = np.concatenate(
+                [a["dimensions"][:, [0, 2]] for a in gt_annos_part], 0)
+            rots = np.concatenate([a["rotation_y"] for a in gt_annos_part], 0)
+            gt_boxes = np.concatenate(
+                [loc, dims, rots[..., np.newaxis]], axis=1)
+            loc = np.concatenate(
+                [a["location"][:, [0, 2]] for a in dt_annos_part], 0)
+            dims = np.concatenate(
+                [a["dimensions"][:, [0, 2]] for a in dt_annos_part], 0)
+            rots = np.concatenate([a["rotation_y"] for a in dt_annos_part], 0)
+            dt_boxes = np.concatenate(
+                [loc, dims, rots[..., np.newaxis]], axis=1)
+            overlap_part = bev_box_overlap(gt_boxes, dt_boxes).astype(
+                np.float64)
+        elif metric == 2:
+            loc = np.concatenate([a["location"] for a in gt_annos_part], 0)
+            dims = np.concatenate([a["dimensions"] for a in gt_annos_part], 0)
+            rots = np.concatenate([a["rotation_y"] for a in gt_annos_part], 0)
+            gt_boxes = np.concatenate(
+                [loc, dims, rots[..., np.newaxis]], axis=1)
+            gt_boxes = gt_boxes[:, [0, 2, 1, 3, 5, 4, 6]]  # x,y,z,l,w,h,rot -> x,z,y,l,h,w,rot
+            loc = np.concatenate([a["location"] for a in dt_annos_part], 0)
+            dims = np.concatenate([a["dimensions"] for a in dt_annos_part], 0)
+            rots = np.concatenate([a["rotation_y"] for a in dt_annos_part], 0)
+            dt_boxes = np.concatenate(
+                [loc, dims, rots[..., np.newaxis]], axis=1)
+            dt_boxes = dt_boxes[:, [0, 2, 1, 3, 5, 4, 6]]  # x,y,z,l,w,h,rot -> x,z,y,l,h,w,rot
+            overlap_part = d3_box_overlap(gt_boxes, dt_boxes).astype(
+                np.float64)
+        else:
+            raise ValueError("unknown metric")
+        parted_overlaps.append(overlap_part)
+        example_idx += num_part
+    overlaps = []
+    example_idx = 0
+    for j, num_part in enumerate(split_parts):
+        gt_annos_part = gt_annos[example_idx:example_idx + num_part]
+        dt_annos_part = dt_annos[example_idx:example_idx + num_part]
+        gt_num_idx, dt_num_idx = 0, 0
+        for i in range(num_part):
+            gt_box_num = total_gt_num[example_idx + i]
+            dt_box_num = total_dt_num[example_idx + i]
+            overlaps.append(
+                parted_overlaps[j][gt_num_idx:gt_num_idx + gt_box_num,
+                                   dt_num_idx:dt_num_idx + dt_box_num])
+            gt_num_idx += gt_box_num
+            dt_num_idx += dt_box_num
+        example_idx += num_part
+
+    return overlaps, parted_overlaps, total_gt_num, total_dt_num
+
 # Function from pcdet, adapted for autolabel
 @numba.jit(nopython=True)
 def fused_compute_statistics(overlaps, pr, gt_nums, dt_nums, dc_nums, gt_datas, dt_datas, dontcares, ignored_gts,
                              ignored_dets, metric, min_overlap, thresholds, compute_aos=False):
+    print("-> fused_compute_stat")
     gt_num = 0
     dt_num = 0
     dc_num = 0
@@ -34,7 +121,7 @@ def fused_compute_statistics(overlaps, pr, gt_nums, dt_nums, dc_nums, gt_datas, 
             ignored_gt = ignored_gts[gt_num:gt_num + gt_nums[i]]
             ignored_det = ignored_dets[dt_num:dt_num + dt_nums[i]]
             dontcare = dontcares[dc_num:dc_num + dc_nums[i]]
-            tp, fp, fn, similarity, _, _= compute_statistics_jit(
+            tp, fp, fn, similarity, _, _ = compute_statistics_jit(
                 overlap,
                 gt_data,
                 dt_data,
@@ -70,14 +157,19 @@ def compute_statistics_jit(overlaps, gt_datas, dt_datas, ignored_gt, ignored_det
 
     ### AUTOLABEL ###
     tp_matches = []
+    fp_overlaps = []
+    fp_indeces = []
     #################
 
     assigned_detection = [False] * det_size
     ignored_threshold = [False] * det_size
+
     if compute_fp:
         for i in range(det_size):
             if (dt_scores[i] < thresh):
                 ignored_threshold[i] = True
+
+
     NO_DETECTION = -10000000
     tp, fp, fn, similarity = 0, 0, 0, 0
     # thresholds = [0.0]
@@ -86,7 +178,13 @@ def compute_statistics_jit(overlaps, gt_datas, dt_datas, ignored_gt, ignored_det
     thresh_idx = 0
     delta = np.zeros((gt_size, ))
     delta_idx = 0
+
+    print(ignored_gt)
+
+
     for i in range(gt_size):
+
+        # ignored_gt array with 0 if gt class matches current class -1 else. Ex. [ 0  0  0  0 -1 -1] 0-> Car, -1-> other
         if ignored_gt[i] == -1:
             continue
         det_idx = -1
@@ -94,42 +192,66 @@ def compute_statistics_jit(overlaps, gt_datas, dt_datas, ignored_gt, ignored_det
         max_overlap = 0
         assigned_ignored_det = False
 
+
         for j in range(det_size):
+
+            # 0 if current class prediction, -1 else. Ex. [0 0 0 0 0] 0-> Car, -1 -> other
             if (ignored_det[j] == -1):
                 continue
             if (assigned_detection[j]):
                 continue
             if (ignored_threshold[j]):
                 continue
-            overlap = overlaps[j, i]
 
+            overlap = overlaps[j, i]
             dt_score = dt_scores[j]
+
             if (not compute_fp and (overlap > min_overlap)
                     and dt_score > valid_detection):
                 det_idx = j
                 valid_detection = dt_score
+
             elif (compute_fp and (overlap > min_overlap)
                   and (overlap > max_overlap or assigned_ignored_det)
                   and ignored_det[j] == 0):
                 max_overlap = overlap
                 det_idx = j
+
+                ### AUTOLABEL ###
+                #print("FP: ", [j, i])
+                fp_indeces.append(j)
+                #################
+
                 valid_detection = 1
                 assigned_ignored_det = False
+
             elif (compute_fp and (overlap > min_overlap)
                   and (valid_detection == NO_DETECTION)
                   and ignored_det[j] == 1):
                 det_idx = j
+
+                ### AUTOLABEL ###
+                #print("FP: ", [j, i])
+                #################
+
                 valid_detection = 1
                 assigned_ignored_det = True
 
+
         if (valid_detection == NO_DETECTION) and ignored_gt[i] == 0:
             fn += 1
+            print("FN: ", [j, i])
+
         elif ((valid_detection != NO_DETECTION)
               and (ignored_gt[i] == 1 or ignored_det[det_idx] == 1)):
             assigned_detection[det_idx] = True
+            print("here: ", [j, i])
+
         elif valid_detection != NO_DETECTION:
             tp += 1
+
             ### AUTOLABEL ###
+            print("TP_det: ", [det_idx, i])
             tp_matches.append([det_idx, i])
             #################
 
@@ -142,11 +264,24 @@ def compute_statistics_jit(overlaps, gt_datas, dt_datas, ignored_gt, ignored_det
                 delta_idx += 1
 
             assigned_detection[det_idx] = True
+
+
+    print("ignored_det: ", ignored_det)
+    print("assigned_detection: ", assigned_detection)
+    print("ignored_threshold: ", ignored_threshold)
+    print("fp_indeces: ", fp_indeces)
+
     if compute_fp:
         for i in range(det_size):
             if (not (assigned_detection[i] or ignored_det[i] == -1
                      or ignored_det[i] == 1 or ignored_threshold[i])):
                 fp += 1
+                ### AUTOLABEL ###
+                fp_overlaps.append(overlap)
+
+                #################
+
+
         nstuff = 0
         if metric == 0:
             overlaps_dt_dc = image_box_overlap(dt_bboxes, dc_bboxes, 0)
@@ -174,11 +309,12 @@ def compute_statistics_jit(overlaps, gt_datas, dt_datas, ignored_gt, ignored_det
                 similarity = np.sum(tmp)
             else:
                 similarity = -1
+
+
     return tp, fp, fn, similarity, thresholds[:thresh_idx], tp_matches
 
 # Function from pcdet, adapted for autolabel
-def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_overlaps, compute_aos=False,
-               num_parts=100):
+def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_overlaps, compute_aos=False, num_parts=100):
     """Kitti eval. support 2d/bev/3d/aos eval. support 0.5:0.05:0.95 coco AP.
     Args:
         gt_annos: dict, must from get_label_annos() in kitti_common.py
@@ -236,6 +372,9 @@ def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_ove
 
                 thresholdss = []
                 for i in range(len(gt_annos)):
+                    print("_______________________________")
+                    print(gt_annos[i]["frame_ID"])
+
 
                     rets = compute_statistics_jit(
                         overlaps[i],
@@ -247,18 +386,22 @@ def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_ove
                         metric,
                         min_overlap=min_overlap,
                         thresh=0.0,
-                        compute_fp=False)
+                        compute_fp=True)
                     ### AUTOLABEL ###
                     tp, fp, fn, similarity, thresholds, tp_matches = rets
+
+                    #if fp > 0:
+                    #    fn = fn - fp
+                    print("TP: ", tp)
+                    print("FP: ", fp)
+                    print("FN: ", fn)
 
 
                     tp_all += tp
                     fp_all += fp
                     fn_all += fn
 
-                    #print("TP: ", tp)
-                    #print("FP: ", fp)
-                    #print("FN: ", fn)
+
 
                     if tp != 0:
                         mre_frame = compute_mean_relative_error(tp_matches, i, gt_annos, dt_annos, overlaps)
@@ -274,6 +417,7 @@ def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_ove
                     thresholdss += thresholds.tolist()
 
                 ### AUTOLABEL ###
+                print(overlaps)
                 eval_dict[current_class][min_overlap] = {'confusion_mat': {'TP': tp_all, 'FP': fp_all, 'FN': fn_all}}
                 eval_dict[current_class][min_overlap]['mre'] = { 'error': {'loc_x': mre_error_all[0],
                                                                            'loc_y': mre_error_all[1],
@@ -284,7 +428,6 @@ def eval_class(gt_annos, dt_annos, current_classes, difficultys, metric, min_ove
                                                                            'rot_z': mre_error_all[6]},
                                                                  'overlap': mre_error_all[7]}
                 #################
-
 
                 thresholdss = np.array(thresholdss)
                 thresholds = get_thresholds(thresholdss, total_num_valid_gt)
@@ -391,10 +534,7 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
     class_to_name = {
         0: 'Car',
         1: 'Pedestrian',
-        2: 'Cyclist',
-        3: 'Van',
-        4: 'Person_sitting',
-        5: 'Truck'
+        2: 'Cyclist'
     }
     name_to_class = {v: n for n, v in class_to_name.items()}
     if not isinstance(current_classes, (list, tuple)):
@@ -490,7 +630,7 @@ def get_official_eval_result(gt_annos, dt_annos, current_classes, PR_detail_dict
 
 
 
-
+## Strongly adapted from PCDET or written entirely
 # From pcdet.datasets.autolabel.kitti_object_eval_python.kitti_common.
 def get_kitti_gt_annos(label_type, label_folder, frame_ids=None):
 
@@ -602,12 +742,10 @@ def load_config():
     cfg = EasyDict(cfg_dict)
     return cfg
 
-
-
 # Computes the MRE as proposed by Peng et al. [30]
 def compute_mean_relative_error(matches, current_index ,gt_annos, dt_annos, overlaps):
     """
-    matches: 2D array (N,2) --> [[index_detection, index_groundtruth]]
+    matches: 2D array (N,2) --> [[index_detection, index_groundtruth]] ([[det_idx, i]])
     outputs : error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht, error_rot
     """
 
@@ -639,6 +777,7 @@ def compute_mean_relative_error(matches, current_index ,gt_annos, dt_annos, over
         #print("DT: ", dt_loc, dt_dim, dt_rot)
 
         overlap_bev.append(overlaps[current_index][dt_frame_index][gt_frame_index])
+        print("metrics compute: ", current_index, dt_frame_index, gt_frame_index)
 
         error_loc_x.append(abs(gt_loc[0] - dt_loc[0]) / abs(gt_loc[0]))
         error_loc_y.append(abs(gt_loc[1] - dt_loc[1]) / abs(gt_loc[1]))
@@ -659,6 +798,7 @@ def compute_mean_relative_error(matches, current_index ,gt_annos, dt_annos, over
 
     return [error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht, error_rot, overlap_bev]
 
+# Function generates plots for mean relative error.
 def generate_plots(eval_dict):
 
     folder_path = "/home/autolabel_pipeline/debug"
@@ -688,6 +828,99 @@ def generate_plots(eval_dict):
     print("SAVED SUCCESSFULLY")
 
 
+def debug_evaluation_with_visualisation(frame_IDs):
+    print("-> debug_evaluation_with_visualisation")
+
+    for frame_ID in frame_IDs:
+        counter = 0
+        frame_ID_vis = str(frame_ID).zfill(6)
+
+        gt_annos = get_kitti_gt_annos('ground_truths', folder_1, [frame_ID])
+        # gt_annos = get_kitti_gt_annos('pseudo_labels', folder_1, frame_IDs)
+        dt_annos = get_kitti_gt_annos('pseudo_labels', folder_2, [frame_ID])
+
+        result, ret_dict, my_eval_dict = get_official_eval_result(gt_annos, dt_annos, cfg.PIPELINE.CLASSES)
+        print("my_eval_dict: ", my_eval_dict)
+        print("result: ", result)
+        # generate_plots(my_eval_dict)
+
+        # print(my_eval_dict)
+
+        for key1, value1 in my_eval_dict.items():
+            for key2, value2 in value1.items():
+                confusion_mat = value2['confusion_mat']
+                print(f'Combination: ({key1}, {key2})')
+                print(f'Confusion Matrix: {confusion_mat}')
+                print('---')
+
+        if cfg.PIPELINE.SHOW_POINT_CLOUDS:
+            print("\n", "Visualization triggered:")
+            visualize_single_pcd(frame_ID_vis, cfg.VISUALISATION.BBOXES_TO_LOAD, cfg)
+
+
+        counter += 1
+        if counter >= 1:
+            manual_continue = input("Continue y/ n ? ")
+            if manual_continue == "y":
+                counter = 0
+                continue
+            else:
+                exit()
+
+
+def compute_performance_metrics(frame_IDs):
+    # frame_IDs = [3676]
+    # frame_IDs = [1, 2, 4, 5, 6, 8, 15, 19]
+    #frame_IDs = [1, 618]
+
+    # PTPILLARS
+    frames_remove = [2,61,314,394,499,878,932,1019,1344,1650,1752,2075,2136,2220, 2325,2628,2764,2863,
+                                2995,3145,3292,3405,3630,3635,3707,3874,4191,4202,4305,4340,4415,4465,4502,4566,
+                                4638,4683,4699,4746,4768, 4931, 5341,5359,5447,5458,5584,5826,6555,6586,6711,6712,
+                                6741,6759,6816,6898,7079,7115,7212,7304,7343,7397]
+    # SECOND frames_remove = [399,1019,1712,1946,2075,2628,2877,3183,4224,4305,4608,4683,4931,5584,6244,6819,7072,
+    #                         7115,7227,7397]
+    # MAJORITY frames_remove = [24,61,102,124,187,195,224,251,260,278,394,452,499,581,595,636,657,766,769,806,873,878,
+    #                           881,889,932,948,967,1006,1019,1053,1144,1167,1173,1188,1194,1234,1235,1242,1286,1344,
+    #                           1350,1353,1427,1432,1487,1527,1577,1587,1621,1635,1650,1684,1711,1712,1752,1782,1807,
+    #                           1854,1881,1892,1946,1995,2036,2075,2136,2166,2179,2220,2279,2284,2325,2327,2329,2391,
+    #                           2457,2504,2562,2613,2628,2686,2694,2695,2699,2810,2863,2877,2885,2889,2908,2914,2995,
+    #                           3003,3031,3054,3071,3082,3136,3145,3156,3183,3202,3322,3324,3365,3419,3492,3573,3630,
+    #                           3635,3689,3748,3762,3788,3841,3897,3950,4132,4191,4202,4224,4271,4278,4291,4305,4319,
+    #                           4343,4367,4377,4393,4414,4415,4465,4502,4530,4566,4568,4576,4582,4588,4608,4638,4650,
+    #                           4683,4697,4699,4706,4722,4726,4759,4768,4773,4914,4931,4944,4960,4996,5070,5078,5110,
+    #                           5147,5230,5284,5337,5338,5341,5447,5452,5582,5584,5601,5638,5653,5662,5683,5699,5785,
+    #                           5805,5812,5818,5841,5856,5939,5969,6028,6030,6057,6087,6096,6133,6165,6282,6321,6331,
+    #                           6332,6349,6377,6491,6507,6555,6582,6586,6614,6650,6701,6711,6712,6741,6744,6759,6777,
+    #                           6816,6819,6847,6855,6872,6994,7072,7079,7080,7115,7133,7201,7212,7227,7235,7253,7265,
+    #                           7300,7369,7375,7397,7439]
+    # NMS frames_remove = [5,61,102,224,499,581,636,657,769,873,932,1019,1053,1167,1173,1188,1194,1286,1344,1577,1587,
+    #                      1650,1711,1712,1752,1813,1854,1881,1892,1995,2075,2160,2166,2220,2284,2325,2329,2504,2613,
+    #                      2628,2810,2863,2877,2885,2995,3031,3082,3145,3183,3202,3322,3635,3679,3762,3777,3788,3950,
+    #                      4132,4191,4195,4202,4278,4305,4367,4415,4465,4530,4566,4568,4588,4608,4683,4697,4699,4726,
+    #                      4759,4768,4773,4914,4931,4944,5110,5147,5230,5338,5341,5447,5582,5584,5601,5638,5699,5785,
+    #                      5818,5856,5969,6030,6165,6282,6331,6332,6377,6491,6517,6555,6650,6712,6741,6744,6759,6819,
+    #                      6874,7072,7079,7115,7227,7235,7253,7300,7369,7397,7439]
+    frame_IDs = [frame for frame in frame_IDs if frame not in frames_remove]
+
+    # print(frame_IDs)
+
+    gt_annos = get_kitti_gt_annos('ground_truths', folder_1, frame_IDs)
+    # gt_annos = get_kitti_gt_annos('pseudo_labels', folder_1, frame_IDs)
+    dt_annos = get_kitti_gt_annos('pseudo_labels', folder_2, frame_IDs)
+
+    result, ret_dict, my_eval_dict = get_official_eval_result(gt_annos, dt_annos, cfg.PIPELINE.CLASSES)
+    print("result: ", result)
+    # generate_plots(my_eval_dict)
+
+    # print(my_eval_dict)
+
+    for key1, value1 in my_eval_dict.items():
+        for key2, value2 in value1.items():
+            confusion_mat = value2['confusion_mat']
+            print(f'Combination: ({key1}, {key2})')
+            print(f'Confusion Matrix: {confusion_mat}')
+            print('---')
 
 
 
@@ -697,41 +930,33 @@ if __name__ == "__main__":
     cfg = load_config()
 
     folder_1 = cfg.DATA.PATH_GROUND_TRUTHS
-    folder_2 = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS
+    #folder_2 = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
+    folder_2 = cfg.DATA.PATH_PTPILLAR_PREDICTIONS
+    #folder_1 = "/home/autolabel_pipeline/debug/debug_gt"
+    #folder_2 = "/home/autolabel_pipeline/debug/debug_dt"
+
+    #frame_IDs = common_set_between_datasets(cfg, [folder_1, folder_2], False)
+    #frames_remove = [2, 61, 314, 394]
+    #frame_IDs = [frame for frame in frame_IDs if frame not in frames_remove]
+    #frame_IDs = [7375] #7412
+    frame_IDs = [6]
+
+    DEBUG = True
+
+    if DEBUG:
+        debug_evaluation_with_visualisation(frame_IDs)
+    else:
+        compute_performance_metrics(frame_IDs)
 
 
-    frame_IDs = common_set_between_datasets(cfg, [folder_1, folder_2], False)
+"""
+    NOTE:   FP +1 -> if FP
+            FN +1 -> if FN
+            FP +1 & FN +1 -> if prediction TP but iou below threshold. 
+
+"""
 
 
-    # frame_IDs = [3676]
-    # frame_IDs = [1, 2, 4, 5, 6, 8, 15, 19]
-    # frame_IDs = [1, 618]
 
 
 
-    # PTPILLARS frames_remove = [2,61,314,394,499,878,932,1019,1344,1650,1752,2075,2136,2220, 2325,2628,2764,2863,2995,3145,3292,3405,3630,3635,3707,3874,4191,4202,4305,4340,4415,4465,4502,4566,4638,4683,4699,4746,4768, 4931, 5341,5359,5447,5458,5584,5826,6555,6586,6711,6712,6741,6759,6816,6898,7079,7115,7212,7304,7343,7397]
-
-    # SECOND frames_remove = [399,1019,1712,1946,2075,2628,2877,3183,4224,4305,4608,4683,4931,5584,6244,6819,7072, 7115,7227,7397]
-
-    # MAJORITY frames_remove = [24,61,102,124,187,195,224,251,260,278,394,452,499,581,595,636,657,766,769,806,873,878,881,889,932,948,967,1006,1019,1053,1144,1167,1173,1188,1194,1234,1235,1242,1286,1344,1350,1353,1427,1432,1487,1527,1577,1587,1621,1635,1650,1684,1711,1712,1752,1782,1807,1854,1881,1892,1946,1995,2036,2075,2136,2166,2179,2220,2279,2284,2325,2327,2329,2391,2457,2504,2562,2613,2628,2686,2694,2695,2699,2810,2863,2877,2885,2889,2908,2914,2995,3003,3031,3054,3071,3082,3136,3145,3156,3183,3202,3322,3324,3365,3419,3492,3573,3630,3635,3689,3748,3762,3788,3841,3897,3950,4132,4191,4202,4224,4271,4278,4291,4305,4319,4343,4367,4377,4393,4414,4415,4465,4502,4530,4566,4568,4576,4582,4588,4608,4638,4650,4683,4697,4699,4706,4722,4726,4759,4768,4773,4914,4931,4944,4960,4996,5070,5078,5110,5147,5230,5284,5337,5338,5341,5447,5452,5582,5584,5601,5638,5653,5662,5683,5699,5785,5805,5812,5818,5841,5856,5939,5969,6028,6030,6057,6087,6096,6133,6165,6282,6321,6331,6332,6349,6377,6491,6507,6555,6582,6586,6614,6650,6701,6711,6712,6741,6744,6759,6777,6816,6819,6847,6855,6872,6994,7072,7079,7080,7115,7133,7201,7212,7227,7235,7253,7265,7300,7369,7375,7397,7439]
-
-    frames_remove = [5,61,102,224,499,581,636,657,769,873,932,1019,1053,1167,1173,1188,1194,1286,1344,1577,1587,1650,1711,1712,1752,1813,1854,1881,1892,1995,2075,2160,2166,2220,2284,2325,2329,2504,2613,2628,2810,2863,2877,2885,2995,3031,3082,3145,3183,3202,3322,3635,3679,3762,3777,3788,3950,4132,4191,4195,4202,4278,4305,4367,4415,4465,4530,4566,4568,4588,4608,4683,4697,4699,4726,4759,4768,4773,4914,4931,4944,5110,5147,5230,5338,5341,5447,5582,5584,5601,5638,5699,5785,5818,5856,5969,6030,6165,6282,6331,6332,6377,6491,6517,6555,6650,6712,6741,6744,6759,6819,6874,7072,7079,7115,7227,7235,7253,7300,7369,7397,7439]
-    frame_IDs = [frame for frame in frame_IDs if frame not in frames_remove]
-
-
-    gt_annos = get_kitti_gt_annos('ground_truths', folder_1, frame_IDs)
-    dt_annos = get_kitti_gt_annos('pseudo_labels', folder_2, frame_IDs)
-    # print("gt_annos: ", gt_annos)
-    # print("dt_annos: ", dt_annos)
-
-    result, ret_dict, my_eval_dict = get_official_eval_result(gt_annos, dt_annos, cfg.PIPELINE.CLASSES)
-    print("result: ", result)
-    #generate_plots(my_eval_dict)
-
-
-    for key1, value1 in my_eval_dict.items():
-        for key2, value2 in value1.items():
-            confusion_mat = value2['confusion_mat']
-            print(f'Combination: ({key1}, {key2})')
-            print(f'Confusion Matrix: {confusion_mat}')
-            print('---')
