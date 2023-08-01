@@ -167,7 +167,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
             cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
             ret_dict, val_loss_list = eval_utils.eval_one_epoch(
                 cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
-                result_dir=cur_result_dir, get_val_loss=False
+                result_dir=cur_result_dir, get_val_loss=True
             )
             if len(val_loss_list) > 0:
                 val_losses = [loss[0].item() for loss in val_loss_list]
