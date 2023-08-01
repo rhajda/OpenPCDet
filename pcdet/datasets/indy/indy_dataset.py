@@ -28,7 +28,7 @@ class IndyDataset(DatasetTemplate):
             eval_mode=eval_mode, test=test
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.root_split_path = self.root_path / 'training'
+        self.root_split_path = self.root_path / 'data'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
@@ -90,7 +90,7 @@ class IndyDataset(DatasetTemplate):
             dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training, root_path=self.root_path, logger=self.logger
         )
         self.split = split
-        self.root_split_path = self.root_path / 'training'
+        self.root_split_path = self.root_path / 'data'
 
         split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
@@ -101,7 +101,7 @@ class IndyDataset(DatasetTemplate):
             print(f"Set split to {self.split}")
 
     def get_lidar(self, idx):
-        lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
+        lidar_file = self.root_split_path / 'pcl' / ('%s.pcd' % idx)
         assert lidar_file.exists()
         return np.asarray(o3d.io.read_point_cloud(str(lidar_file), format="pcd").points)
 
@@ -126,7 +126,7 @@ class IndyDataset(DatasetTemplate):
         return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
 
     def get_label(self, idx):
-        label_file = self.root_split_path / 'label_2' / ('%s.txt' % idx)
+        label_file = self.root_split_path / 'label' / ('%s.txt' % idx)
         assert label_file.exists()
         return object3d_kitti.get_objects_from_label(label_file)
 
