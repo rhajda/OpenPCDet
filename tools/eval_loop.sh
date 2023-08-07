@@ -10,6 +10,6 @@ do
     # i = 1 training repetitions for each training dataset
     for i in {1..1}
         do
-                python test.py --cfg_file cfgs/indy_models/${NETWORK}.yaml --extra_tag "${TRAIN_DATASET}" --ckpt_dir /home/output/indy_models/${NETWORK}/${TRAIN_DATASET}/ckpt/ --eval_all --start_epoch 70 --eval_tag ${EVAL_TAG} --max_waiting_mins 0
+                python test.py --cfg_file cfgs/indy_models/${NETWORK}.yaml --extra_tag "${TRAIN_DATASET}" --ckpt_dir /home/output/indy_models/${NETWORK}/${TRAIN_DATASET}/ckpt/ --eval_all --start_epoch 75 --eval_tag ${EVAL_TAG} --max_waiting_mins 0
         done
 done
