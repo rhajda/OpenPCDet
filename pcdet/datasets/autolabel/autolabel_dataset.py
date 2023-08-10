@@ -493,14 +493,36 @@ class AutolabelDataset(DatasetTemplate):
 
 def create_autolabel_infos(dataset_cfg, class_names, data_path, save_path, workers=16):
     dataset = AutolabelDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
-    train_split, val_split, test_split = 'train', 'val', 'test'
+    train_split, val_split, test_split, pseudo_label_split = 'train', 'val', 'test', 'pseudo_label'
 
     train_filename = save_path / ('kitti_infos_%s.pkl' % train_split)
     val_filename = save_path / ('kitti_infos_%s.pkl' % val_split)
     test_filename = save_path / ('kitti_infos_%s.pkl' % test_split)
+    pseudo_label_filename = save_path / ('kitti_infos_%s.pkl' % pseudo_label_split)
 
     print('---------------Start to generate data infos---------------')
 
+    # pseudo-label infos
+    dataset.set_split(pseudo_label_split)
+    kitti_infos_pseudo_label = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    with open(pseudo_label_filename, 'wb') as f:
+        pickle.dump(kitti_infos_pseudo_label, f)
+    print('Kitti info pseudo_label file is saved to %s' % pseudo_label_filename)
+
+    # calculate mean object sizes of train split
+    kitti_infos_pseudo_label = [kitti_info_pseudo_label for kitti_info_pseudo_label in kitti_infos_pseudo_label if
+                                kitti_info_pseudo_label != {}]
+    car_mask_gt = np.asarray([obj["annos"]["name"] == "Car" for obj in kitti_infos_pseudo_label])
+    car_dims_gt = np.asarray(
+        [obj["annos"]["dimensions"][mask] for obj, mask in zip(kitti_infos_pseudo_label, car_mask_gt)])
+    mean_l = np.mean([np.mean(car_dim[:, 0]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_w = np.mean([np.mean(car_dim[:, 1]) for car_dim in car_dims_gt if car_dim.any()])
+    mean_h = np.mean([np.mean(car_dim[:, 2]) for car_dim in car_dims_gt if car_dim.any()])
+    print(f"TRAIN mean LENGTH: {mean_l}")
+    print(f"TRAIN mean WIDTH: {mean_w}")
+    print(f"TRAIN mean HEIGHT: {mean_h}")
+
+    # train
     dataset.set_split(train_split)
     kitti_infos_train = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(train_filename, 'wb') as f:
@@ -518,6 +540,7 @@ def create_autolabel_infos(dataset_cfg, class_names, data_path, save_path, worke
     print(f"TRAIN mean WIDTH: {mean_w}")
     print(f"TRAIN mean HEIGHT: {mean_h}")
 
+    # val
     dataset.set_split(val_split)
     kitti_infos_val = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
     with open(val_filename, 'wb') as f:

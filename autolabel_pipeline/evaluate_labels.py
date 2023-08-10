@@ -680,7 +680,7 @@ def compute_mean_relative_error(matches, current_index ,gt_annos, dt_annos, over
     return [error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht, error_rot, overlap_bev]
 
 # Function generates plots for mean relative error.
-def generate_evalutation_results(result, FN_counts, empty_frame_list, eval_dict):
+def generate_evaluation_results(result, FN_counts, empty_frame_list, eval_dict):
     print("-> generate_evalutation_results")
 
     # Print info
@@ -735,7 +735,7 @@ def main_evaluate_labels(cfg, folder_1, folder_2):
                                                                                                          folder_1,
                                                                                                          folder_2)
 
-    generate_evalutation_results(result, FN_counts, empty_frame_list, my_eval_dict)
+    generate_evaluation_results(result, FN_counts, empty_frame_list, my_eval_dict)
 
     return ret_dict, mAP3d_R40, my_eval_dict
 
@@ -745,12 +745,7 @@ if __name__ == "__main__":
     cfg = load_config()
 
     folder_1 = cfg.DATA.PATH_GROUND_TRUTHS
-    folder_2 = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS
+    folder_2 = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
 
     ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, folder_1, folder_2)
-
-
-
-
-
 

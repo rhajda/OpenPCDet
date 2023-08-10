@@ -13,7 +13,6 @@ from visualize_pcds import get_file_names, visualize_single_pcd
 # Import voting schemes
 from voting_schemes import nms_voting, majority_voting
 
-
 # Define a working path used to access different paths
 working_path = pathlib.Path(__file__).resolve().parents[1]
 
@@ -34,11 +33,6 @@ voting schemes:
 
 """
 
-BATCH_SIZE_VOTING = 10000
-
-# If not all frames should be voted on: Set START_AT_CHECKPOINT = True + set START_FRAME as first frame to be voted on.
-START_AT_CHECKPOINT = False
-START_FRAME = 100
 
 
 
@@ -65,7 +59,9 @@ def csv_to_dataframe(path_data, file_name):
     columns = ['ID', 'label', 'loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht', 'rot_z', 'score']
 
     # Load data from csv to a dataframe.
-    my_file = np.genfromtxt(path_data, delimiter=',', dtype=str)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="genfromtxt: Empty input file")
+        my_file = np.genfromtxt(path_data, delimiter=',', dtype=str)
 
     if np.size(my_file) == 0:
         return pd.DataFrame(columns=columns)
@@ -144,7 +140,7 @@ def add_empty_prediction_files(unique_frames, folders):
                 np.savetxt(file_path, empty_array, delimiter=',', fmt='%s')
 
 # Function that manages NMS or MAJORITY voting and feeds data to the voting schemes
-def vote_pseudo_labels(frame_set, batch_size_voting):
+def vote_pseudo_labels(cfg, frame_set, batch_size_voting):
 
     show_progress_bar = not cfg.PIPELINE.PRINT_INFORMATION
 
@@ -192,16 +188,14 @@ def vote_pseudo_labels(frame_set, batch_size_voting):
             else:
                 exit()
 
-
+# Function that removes frames to be processed to start at set checkpoint, if set.
 def remove_smaller_numbers(numbers, value):
     return [num for num in numbers if num >= value]
 
 
 
-if __name__ == "__main__":
 
-    # Load EasyDict to access parameters.
-    cfg = load_config()
+def main_pseudo_label(cfg, BATCH_SIZE_VOTING, START_AT_CHECKPOINT, START_FRAME):
     frame_set = common_set_between_datasets(cfg,
                                             [cfg.DATA.PATH_PTRCNN_PREDICTIONS,
                                              cfg.DATA.PATH_PTPILLAR_PREDICTIONS,
@@ -211,4 +205,15 @@ if __name__ == "__main__":
     if START_AT_CHECKPOINT:
         frame_set = remove_smaller_numbers(frame_set, START_FRAME)
 
-    vote_pseudo_labels(frame_set, BATCH_SIZE_VOTING)
+    vote_pseudo_labels(cfg, frame_set, BATCH_SIZE_VOTING)
+
+if __name__ == "__main__":
+
+    BATCH_SIZE_VOTING = 10000
+    # If not all frames should be voted on: Set START_AT_CHECKPOINT = True + set START_FRAME as first frame to be voted on.
+    START_AT_CHECKPOINT = False
+    START_FRAME = 100
+
+    # Load EasyDict to access parameters.
+    cfg = load_config()
+    main_pseudo_label(cfg, BATCH_SIZE_VOTING, START_AT_CHECKPOINT, START_FRAME)

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 
 # Import necessary libraries
 from pathlib import Path
@@ -13,6 +13,7 @@ from tensorboardX import SummaryWriter
 
 package_path = Path(__file__).resolve().parents[1]
 sys.path.append(os.path.join(package_path, 'tools'))
+
 
 from tools.test import parse_config
 from tools.test import set_random_seed
@@ -75,7 +76,7 @@ def predict_single_ckpt(model, dataloader, args, predict_output_dir, logger, epo
 
     for i, batch_dict in enumerate(dataloader):
 
-        print(batch_dict)
+        #print(batch_dict)
 
         frame_ids = batch_dict['frame_id']
         load_data_to_gpu(batch_dict)
@@ -104,7 +105,6 @@ def predict_single_ckpt(model, dataloader, args, predict_output_dir, logger, epo
 
     logger.info('Predictions saved for all frames.')
 
-    exit()
 
 
 if __name__ == '__main__':
@@ -113,6 +113,7 @@ if __name__ == '__main__':
 
     # Load cfg file and args
     args, cfg = parse_config()
+
 
     if args.launcher == 'none':
         dist_test = False
@@ -131,14 +132,17 @@ if __name__ == '__main__':
         assert args.batch_size % total_gpus == 0, 'Batch size should match the number of gpus'
         args.batch_size = args.batch_size // total_gpus
 
+
     # Write data to /autolabel_pipeline/../predictions
-    output_dir = cfg.ROOT_DIR / 'autolabel_pipeline' / 'predictions' / cfg.TAG
+    output_dir = cfg.ROOT_DIR / 'autolabel_data' / 'autolabel' / 'predictions' / cfg.TAG
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.eval_all:
         num_list = re.findall(r'\d+', args.ckpt) if args.ckpt is not None else []
         epoch_id = num_list[-1] if num_list.__len__() > 0 else 'no_number'
-        predict_output_dir = output_dir / ('epoch_%s' % epoch_id)
+        #predict_output_dir = output_dir / ('epoch_%s' % epoch_id)
+        predict_output_dir = output_dir
+        print("Output directory for predictions: ", predict_output_dir)
 
     else:
         predict_output_dir = output_dir / 'eval_all_default'

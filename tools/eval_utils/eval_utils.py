@@ -124,7 +124,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
             # The x, y, z axis will be rendered as red, green, and blue arrows respectively.
             mesh_frame = o3d.geometry.TriangleMesh().create_coordinate_frame(size=1, origin=[0, 0, 0])
 
-            vis = o3d.visualization.Visualizer()
+            vis = o3d.visualize.Visualizer()
             vis.create_window()
             vis.add_geometry(mesh_frame)
 
