@@ -8,7 +8,8 @@ import yaml
 import csv
 import os
 
-from main_autolabel import load_config, main_pseudo_label
+from base_functions import load_config, autolabel_path_manager
+from main_autolabel import main_pseudo_label
 from evaluate_labels import get_label_anno
 
 # Define a working path used to access different paths
@@ -32,39 +33,16 @@ voting schemes:
 
 """
 
-
-
-# Manage path to directories.
-# Class to load different directories and access them easily.
-class PathManager:
-    def __init__(self):
-        self.paths = {}
-
-    def add_path(self, name, path):
-        self.paths[name] = path
-
-    def get_path(self, name):
-        return self.paths.get(name)
-
-    def list_paths(self):
-        return list(self.paths.keys())
-
-# Function that add paths to the class instance.
-def add_paths(cfg_autolabel):
-
-    path_manager = PathManager()
-
-    path_manager.add_path("path_project_dataset", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.DATASET))
-    path_manager.add_path("path_project_data", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA))
-    path_manager.add_path("path_cfg_dataset", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.CFG_DATASET))
-    path_manager.add_path("path_cfg_models", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.CFG_MODELS))
-    path_manager.add_path("path_model_ckpt_dir", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA, "models"))
-    path_manager.add_path("path_output_labels", os.path.join(working_path, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA, "output_labels"))
-
-    print("Loaded paths: ", path_manager.list_paths())
-
-    return path_manager
-
+# See later: Function new project.
+def new_project():
+    # check if a new project is intended to be started.
+    if not os.path.exists(os.path.join(working_path,cfg.DATA.PROJECT.AUTOLABEL_DATA)):
+        manual_continue = input("Do you intend to create a new project? "
+                                "(A new directory will be created at cfg.DATA.PROJECT.AUTOLABEL_DATA. Please check.) y/ n ? ")
+        if manual_continue != "y":
+            exit()
+        else:
+            os.mkdir(os.path.join(working_path,cfg.DATA.PROJECT.AUTOLABEL_DATA))
 
 
 # MODE 1 sub-functions
@@ -478,7 +456,7 @@ if __name__ == "__main__":
     # Load EasyDict to access autolabel parameters.
     cfg_autolabel = load_config()
     # Load path manager to access paths easily.
-    path_manager = add_paths(cfg_autolabel)
+    path_manager = autolabel_path_manager(cfg_autolabel)
 
     if cfg_autolabel.PIPELINE.PRINT_INFORMATION:
         print(f"Initial working path: {working_path}")

@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import itertools
 
-from main_autolabel import main_pseudo_label, load_config
+from base_functions import load_config, autolabel_path_manager
+from main_autolabel import main_pseudo_label
 from evaluate_labels import main_evaluate_labels
 
 # Define a working path used to access different paths
@@ -46,7 +47,7 @@ def plot_graphs():
 
 
 
-def sensitivity_analysis_nms():
+def sensitivity_analysis_nms(path_manager):
 
     # loop over THRESHOLD_NMS_OVERLAP and then loop over THRESHOLDS per class.
     grid_threshold_nms_overlap = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -68,7 +69,7 @@ def sensitivity_analysis_nms():
             cfg['PIPELINE']['NMS_VOTING']['THRESHOLDS']['THRESHOLD_CONFIDENCE_PEDESTRIAN'] = threshold_confidence
 
             main_pseudo_label(cfg, BATCH_SIZE_VOTING=10000, START_AT_CHECKPOINT=False, START_FRAME=7400)
-            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, cfg.DATA.PATH_GROUND_TRUTHS, cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS)
+            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, cfg.DATA.PATH_GROUND_TRUTHS, path_manager.get_path("path_pseudo_labels_nms"))
 
             new_row = { 'thres_conf': threshold_confidence,
                         'nms_overlap': threshold_nms,
@@ -91,7 +92,7 @@ def sensitivity_analysis_nms():
 
     print("done")
 
-def sensitivity_analysis_majority():
+def sensitivity_analysis_majority(path_manager):
 
     def vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1):
         print("thres_iou: ", thres_iou, "thres_3: ", thres_3, "thres_2: ", thres_2, "thres_1: ", thres_1)
@@ -118,7 +119,7 @@ def sensitivity_analysis_majority():
 
             main_pseudo_label(cfg, BATCH_SIZE_VOTING=10000, START_AT_CHECKPOINT=False, START_FRAME=7430)
             _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, cfg.DATA.PATH_GROUND_TRUTHS,
-                                                                  cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY)
+                                                                  path_manager.get_path("path_pseudo_labels_majority"))
 
             new_row = {'thres_iou': thres_iou,
                        'thres_3': thres_3,
@@ -206,16 +207,17 @@ if __name__ == "__main__":
 
     # Load EasyDict to access parameters.
     cfg = load_config()
+    path_manager = autolabel_path_manager(cfg)
 
 
     if cfg.PIPELINE.VOTING_SCHEME == 'NMS':
         print("Sensitivity analysis NMS voting: ")
-        sensitivity_analysis_nms()
+        sensitivity_analysis_nms(path_manager)
         exit()
 
     if cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
         print("Sensitivity analysis MAJORITY voting: ")
-        sensitivity_analysis_majority()
+        sensitivity_analysis_majority(path_manager)
         exit()
 
     else:

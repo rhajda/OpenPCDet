@@ -8,6 +8,8 @@ import pathlib
 from easydict import EasyDict
 import yaml
 
+from base_functions import load_config, autolabel_path_manager
+
 # Define a working path used to access different paths
 working_path = pathlib.Path(__file__).resolve().parents[1]
 
@@ -17,18 +19,22 @@ working_path = pathlib.Path(__file__).resolve().parents[1]
 FILE DESCRIPTION: 
 
 This file displays point clouds using open3d. The user can either specify a specific point cloud to be displayed or 
-randomly display 5 point clouds. The script can load ['groundtruths', 'pointrcnn', 'pointpillar', 'pseudo_labels']. 
+randomly display 5 point clouds. 
+The script can load ['groundtruths', 'pointrcnn', 'pointpillar', 'second, 'pseudo_labels']. 
 The point cloud will always be displayed, bbox sources can be defined in the .yaml file. 
 Ex.: If one wants to load only groundtruths --> BBOXES_TO_LOAD:['groundtruths'].
 
 Ground truths are displayed in red. 
-Predicted boxes (point rcnn) in blue.  
-Predicted boxes (point pillar) in green. 
-Pseudo_labels are displayed in orange.
+Predicted boxes (pointrcnn) in dark blue.  
+Predicted boxes (pointpillar) in medium blue. 
+Predicted boxes (second) in light blue. 
+Pseudo_labels are displayed in green.
 
-The script has to be triggered directly. It loads arguments form autolabel.yaml (VISUALIZATION)
+The script can be triggered directly. It loads arguments form autolabel.yaml (VISUALIZATION)
 
 """
+
+
 
 
 # Function that loads the YAML file to access parameters.
@@ -48,8 +54,9 @@ def load_config():
     return cfg
 
 
+
 # Function that generates an array containing only common elements present in every bbox source.
-def load_common_pcds(bbox_source):
+def load_common_pcds(path_manager, bbox_source):
 
     bbox_source_elements = []
 
@@ -64,30 +71,30 @@ def load_common_pcds(bbox_source):
                 bbox_source_elements.append(groundtruth_file_names)
 
             if element == 'pointrcnn':
-                pointrcnn_file_names = get_file_names(cfg.DATA.PATH_PTRCNN_PREDICTIONS, '.csv')
+                pointrcnn_file_names = get_file_names(path_manager.get_path("path_ptrcnn_predictions"), '.csv')
                 bbox_source_elements.append(pointrcnn_file_names)
 
             if element == 'pointpillar':
-                pointpillar_file_names = get_file_names(cfg.DATA.PATH_PTPILLAR_PREDICTIONS, '.csv')
+                pointpillar_file_names = get_file_names(path_manager.get_path("path_ptpillar_predictions"), '.csv')
                 bbox_source_elements.append(pointpillar_file_names)
 
             if element == 'second':
-                second_file_names = get_file_names(cfg.DATA.PATH_SECOND_PREDICTIONS, '.csv')
+                second_file_names = get_file_names(path_manager.get_path("path_second_predictions"), '.csv')
                 bbox_source_elements.append(second_file_names)
 
             if element == 'pseudo_labels':
 
                 if cfg.PIPELINE.VOTING_SCHEME == 'NMS':
-                    pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, '.csv')
-                    if os.path.exists(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, 'control')):
-                        pseudo_labels_file_names_control = get_file_names(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS,
+                    pseudo_labels_file_names = get_file_names(path_manager.get_path("path_pseudo_labels_nms"), '.csv')
+                    if os.path.exists(os.path.join(path_manager.get_path("path_pseudo_labels_nms"), 'control')):
+                        pseudo_labels_file_names_control = get_file_names(os.path.join(path_manager.get_path("path_pseudo_labels_nms"),
                                                                                        'control'), '.csv')
                         pseudo_labels_file_names += pseudo_labels_file_names_control
 
                 elif cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
-                    pseudo_labels_file_names = get_file_names(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, '.csv')
-                    if os.path.exists(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control')):
-                        pseudo_labels_file_names_control = get_file_names(os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY,
+                    pseudo_labels_file_names = get_file_names(path_manager.get_path("path_pseudo_labels_majority"), '.csv')
+                    if os.path.exists(os.path.join(path_manager.get_path("path_pseudo_labels_majority"), 'control')):
+                        pseudo_labels_file_names_control = get_file_names(os.path.join(path_manager.get_path("path_pseudo_labels_majority"),
                                                                                        'control'), '.csv')
                         pseudo_labels_file_names += pseudo_labels_file_names_control
 
@@ -108,7 +115,6 @@ def load_common_pcds(bbox_source):
 
     return common_elements_array
 
-
 # Function that loads the names of all files in a folder to an array
 def get_file_names(path_to_files, file_type):
 
@@ -118,7 +124,6 @@ def get_file_names(path_to_files, file_type):
             file_names.append(os.path.splitext(f)[0])
 
     return file_names
-
 
 # Function that transforms predicted boxes to open3d boxes
 def translate_boxes_to_open3d_instance(gt_boxes, gt):
@@ -189,9 +194,8 @@ def translate_boxes_to_open3d_instance(gt_boxes, gt):
 
     return box3d, line_set
 
-
 # This function loads the pcd, predicted boxes and ground-truths of a specified frame ID and visualizes it in open3d.
-def visualize_single_pcd(single_pcd, bbox_source, cfg):
+def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
 
     print("Visualizing frame ID: ", single_pcd)
     print("Sources: ", bbox_source)
@@ -252,7 +256,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
             # print("Ground truth ID: ", gt_file)
 
         if element == 'pointrcnn':
-            prcnn_file = os.path.join(cfg.DATA.PATH_PTRCNN_PREDICTIONS, single_pcd + ".csv")
+            prcnn_file = os.path.join(path_manager.get_path("path_ptrcnn_predictions"), single_pcd + ".csv")
 
             # Predicted bounding boxes POINT-RCNN
             prcnn_pred_array = np.genfromtxt(prcnn_file, delimiter=',', dtype=str)
@@ -277,7 +281,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
             # print("Pt-rcnn ID: ", prcnn_file)
 
         if element == 'pointpillar':
-            ppillar_file = os.path.join(cfg.DATA.PATH_PTPILLAR_PREDICTIONS, single_pcd + ".csv")
+            ppillar_file = os.path.join(path_manager.get_path("path_ptpillar_predictions"), single_pcd + ".csv")
 
             # Predicted bounding boxes POINT-PILLAR
             ppillar_pred_array = np.genfromtxt(ppillar_file, delimiter=',', dtype=str)
@@ -302,7 +306,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
             # print("Pt-pillar ID: ", ppillar_file)
 
         if element == 'second':
-            second_file = os.path.join(cfg.DATA.PATH_SECOND_PREDICTIONS, single_pcd + ".csv")
+            second_file = os.path.join(path_manager.get_path("path_second_predictions"), single_pcd + ".csv")
 
             # Predicted bounding boxes SECOND
             second_pred_array = np.genfromtxt(second_file, delimiter=',', dtype=str)
@@ -329,12 +333,12 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
         if element == 'pseudo_labels':
 
             if cfg.PIPELINE.VOTING_SCHEME == 'NMS':
-                pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS, single_pcd + ".csv")
+                pseudo_label_file = os.path.join(path_manager.get_path("path_pseudo_labels_nms"), single_pcd + ".csv")
 
             elif cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
-                pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, single_pcd + ".csv")
+                pseudo_label_file = os.path.join(path_manager.get_path("path_pseudo_labels_majority"), single_pcd + ".csv")
                 if not os.path.exists(pseudo_label_file):
-                    pseudo_label_file = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control', single_pcd + ".csv")
+                    pseudo_label_file = os.path.join(path_manager.get_path("path_pseudo_labels_majority"), 'control', single_pcd + ".csv")
             else:
                 raise ValueError("Selected VOTING_SCHEME not valid. ")
 
@@ -378,11 +382,13 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg):
     vis.destroy_window()
     print("\n")
 
-
 # This function triggers the open3D visualization depending on the input given: my_pcd = 'xxxxx' , ''
-def trigger_visualization(my_pcd, bbox_source):
+def trigger_visualization(cfg, my_pcd, bbox_source):
 
-    pcds_common = load_common_pcds(bbox_source)
+    # Add PathManager for easy access to paths.
+    path_manager = path_manager(cfg)
+
+    pcds_common = load_common_pcds(path_manager, bbox_source)
 
     if my_pcd == '':
         # Load multiple random files.
@@ -390,13 +396,13 @@ def trigger_visualization(my_pcd, bbox_source):
         pcds_selected = pcds_common[:5]
 
         for i in range(0, (len(pcds_selected))):
-            visualize_single_pcd(pcds_selected[i], bbox_source, cfg)
+            visualize_single_pcd(pcds_selected[i], bbox_source, cfg, path_manager)
         print("done.")
 
     else:
         # Load single specified file.
         if my_pcd in pcds_common:
-            visualize_single_pcd(my_pcd, bbox_source, cfg)
+            visualize_single_pcd(my_pcd, bbox_source, cfg, path_manager)
         else:
             raise ValueError('This point cloud ID is not available. Choose a different one.')
 
@@ -412,4 +418,4 @@ if __name__== "__main__":
     # define which bboxes to load for visualization.
     bbox_source = cfg.VISUALISATION.BBOXES_TO_LOAD
 
-    trigger_visualization(my_pcd_to_visualize, bbox_source)
+    trigger_visualization(cfg, my_pcd_to_visualize, bbox_source)

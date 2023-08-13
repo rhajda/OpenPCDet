@@ -24,6 +24,7 @@ from pcdet.utils import common_utils
 from pcdet.config import log_config_to_file
 from pcdet.datasets import build_dataloader
 from pcdet.models import build_network, load_data_to_gpu
+from main_autolabel import load_config
 
 
 """
@@ -31,13 +32,15 @@ from pcdet.models import build_network, load_data_to_gpu
 FILE DESCRIPTION: 
 
 This file generates object predictions from a trained model used as input. 
-The script can be triggered via predict_objects.sh.
+The script can be triggered via predict_objects.sh. 
 
 # Arguments to the variables are specified in predict_objects.sh.
 CFG_FILE="/.../..."
 CKPT_DIR="/.../ckpt/"
 CKPT='checkpoint_epoch_XX.pth'
 
+The output_dir is defined in cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA. 
+Predictions are saved in a relative predictions/model folder.
 
 """
 
@@ -109,6 +112,9 @@ def predict_single_ckpt(model, dataloader, args, predict_output_dir, logger, epo
 
 if __name__ == '__main__':
 
+    # Load EasyDict to access autolabel parameters.
+    cfg_autolabel = load_config()
+
     LOG_FLAG = False
 
     # Load cfg file and args
@@ -134,7 +140,9 @@ if __name__ == '__main__':
 
 
     # Write data to /autolabel_pipeline/../predictions
-    output_dir = cfg.ROOT_DIR / 'autolabel_data' / 'autolabel' / 'predictions' / cfg.TAG
+    #output_dir = cfg.ROOT_DIR / 'autolabel_data' / 'autolabel' / 'predictions' / cfg.TAG
+    output_dir = os.path.join(cfg.ROOT_DIR, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA, "predictions", cfg.TAG)
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.eval_all:

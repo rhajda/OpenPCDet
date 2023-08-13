@@ -17,6 +17,7 @@ ADD_ELEMENTS = False
 
 
 
+
 # Function that adds fake elements to be processed.
 def add_fake_elements(cfg, df_all, frame_ID):
     print("__________________________________________________________________")
@@ -55,7 +56,7 @@ def add_fake_elements(cfg, df_all, frame_ID):
 
     print(df_all)
     df_group_save = df_all.copy()
-    save_pseudo_labels(cfg, df_group_save, frame_ID, [False])
+    save_pseudo_labels(path_manager, df_group_save, frame_ID, [False])
     print("SAVED.")
     print("__________________________________________________________________")
 
@@ -153,7 +154,10 @@ def get_bbox_groups(cfg, df1, df2, df3, frame_ID):
     if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
         print("\n", "==> majority_voting: ")
 
-    # Gather all bboxes to one df
+    # Gather all bboxes to one df and add corresponding model for traceback.
+    df1['metrics_model'] = 1
+    df2['metrics_model'] = 2
+    df3['metrics_model'] = 3
     df_all = pd.concat([df1, df2, df3], ignore_index=True).sort_values('label').reset_index(drop=True)
 
     if ADD_ELEMENTS:
@@ -168,7 +172,7 @@ def get_bbox_groups(cfg, df1, df2, df3, frame_ID):
 
     return df_all, detected_overlaps, bbox_groups
 # Function performs majority voting on a frame.
-def majority_voting(cfg, df1, df2, df3, frame_ID):
+def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
 
     # Convert list to dataframe with bbox info.
     def group_to_df_group(df, group):
@@ -407,9 +411,12 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                     return object_average
                 else: return False
     # Get representative from group.
-    def subfunction_select_representative(df_group,heading_intervals):
+    def subfunction_select_representative(df_group, heading_intervals):
 
         if DEBUG_MODE: print("-> subfunction representative.")
+
+        # Add metric_weight information to trace back number of detections for this object.
+        df_group['metrics_weight'] = len(df_group)
 
         # identify the majority of similar bbox headings by assigning relative headings.
         interval1 = heading_intervals[0]
@@ -439,7 +446,6 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 if interval2[0] <= heading <= interval2[1]:
                     df_group.at[i, 'relative_heading'] = 'B'
 
-
         #df_group = df_group.drop(2)
         if DEBUG_MODE: print(df_group)
 
@@ -464,7 +470,6 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
         return df_single_pseudo_label
 
 
-
     # Vote a representative from single bbox in group.
     def flow_manager_single_element(cfg, mask, df_group):
 
@@ -476,6 +481,8 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
 
         # Remove unnecessary columns of pseudo label.
         df_single_pseudo_label = df_group
+        # Add metric_weight information to trace back number of detections for this object.
+        df_single_pseudo_label['metrics_weight'] = 1
 
         return df_single_pseudo_label
     # Vote a representative from multiple bboxes in group.
@@ -610,17 +617,22 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 print("\n","Final df_rep_pseudo_labels: ", "\n", df_rep_pseudo_labels)
                 print("__________________________________________________________________")
 
+            ## DEBUG
+            #print(df_rep_pseudo_labels)
+
             df_rep_pseudo_labels = df_rep_pseudo_labels.drop(['weight'], axis=1).reset_index(drop=True)
 
             return df_rep_pseudo_labels
 
 
 
+    #
+    # START MAJORITY VOTING
     # Define a flag that labels highly uncertain pseudo-labels to be saved separately.
     FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL = [False]
 
     if df1.empty and df2.empty and df3.empty:
-        save_pseudo_labels(cfg, pd.DataFrame(), frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
+        save_pseudo_labels(path_manager, pd.DataFrame(), frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
         if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
             print("No bbox proposals. Saved empty frame", frame_ID)
         return
@@ -637,10 +649,15 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
                 print("\n", "Voting: ", current_group)
 
             df_single_pseudo_label = main_queue(df_all, current_group)
+
             df_pseudo_labels = pd.concat((df_pseudo_labels, df_single_pseudo_label), axis=0).reset_index(drop=True)
 
         if not df_pseudo_labels.empty:
-            df_pseudo_labels = df_pseudo_labels.drop(['element'], axis=1).reset_index(drop=True)
+
+            if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+                majority_voting_metrics(path_manager, df_pseudo_labels)
+
+            df_pseudo_labels = df_pseudo_labels.drop(['element', 'metrics_model', 'metrics_weight'], axis=1).reset_index(drop=True)
 
             if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
                 print("\n", "\n", "df_pseudo_labels: ", "\n", df_pseudo_labels)
@@ -648,21 +665,23 @@ def majority_voting(cfg, df1, df2, df3, frame_ID):
             if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
                 print("\n", "\n", "df_pseudo_labels: ", "\n", "empty dataframe")
 
-        save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
+        save_pseudo_labels(path_manager, df_pseudo_labels, frame_ID, FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL)
         if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
             print("Pseudo-labels saved for frame ", frame_ID)
+
+        return
 # Function saves a dataframe with pseudo labels to csv.
-def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, flag_uncertain_label):
+def save_pseudo_labels(path_manager, df_pseudo_labels, frame_ID, flag_uncertain_label):
 
     # Save pseudo-labels as csv to folder.
-    if not os.path.exists(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY):
-        os.makedirs(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY)
+    if not os.path.exists(path_manager.get_path("path_pseudo_labels_majority")):
+        os.makedirs(path_manager.get_path("path_pseudo_labels_majority"))
 
     # Switch paths for flag_uncertain_label True/ False.
     if not flag_uncertain_label[0]:
-        path_to_save = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
+        path_to_save = path_manager.get_path("path_pseudo_labels_majority")
     else:
-        path_to_save = os.path.join(cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY, 'control' )
+        path_to_save = os.path.join(path_manager.get_path("path_pseudo_labels_majority"), 'control' )
         # Create path if non-existent
         if not os.path.exists(path_to_save):
             os.makedirs(path_to_save)
@@ -670,3 +689,24 @@ def save_pseudo_labels(cfg, df_pseudo_labels, frame_ID, flag_uncertain_label):
     # Save pseudo-label to regular folder
     csv_filename = frame_ID + '.csv'
     df_pseudo_labels.iloc[:, 1:].to_csv(os.path.join(path_to_save, csv_filename), index=False, header=False)
+
+# Function that saves one .txt file per non-empty frame containing information on the selected bbox (model) and weight.
+def majority_voting_metrics(path_manager, df_pseudo_labels_final):
+
+    if DEBUG_MODE:
+        print("--> Generating majority voting metrics.")
+
+    path_metrics_pseudo_label_majority = os.path.join(path_manager.get_path("path_pseudo_labels_majority"), "metrics_majority")
+
+    if not os.path.exists(path_metrics_pseudo_label_majority):
+        os.mkdir(path_metrics_pseudo_label_majority)
+
+    unique_id = df_pseudo_labels_final["ID"].iloc[0]
+
+    with open(os.path.join(path_metrics_pseudo_label_majority, f"{unique_id}.txt"), "w") as file:
+        file.write("label, metrics_model, metrics_weight\n")
+        for index, row in df_pseudo_labels_final.iterrows():
+            label = row['label']
+            metrics_model = row['metrics_model']
+            metrics_weight = row['metrics_weight']
+            file.write(f"{label}, {metrics_model}, {metrics_weight}\n")

@@ -9,6 +9,7 @@ import numba
 import yaml
 import os
 # Import visualization functions
+from base_functions import load_config, autolabel_path_manager
 from visualize_pcds import visualize_single_pcd
 from main_autolabel import csv_to_dataframe, common_set_between_datasets
 
@@ -448,22 +449,6 @@ def get_official_eval_result(FN_counts, gt_annos, dt_annos, current_classes, PR_
 
 
 
-# Function that loads the YAML file to access parameters.
-def load_config():
-    cfg_file = os.path.join(working_path, 'autolabel_pipeline/autolabel.yaml')
-    if not os.path.isfile(cfg_file):
-        raise FileNotFoundError
-
-    with open(cfg_file, 'r') as f:
-        try:
-            cfg_dict = yaml.safe_load(f)
-        except yaml.YAMLError as e:
-            print("Error parsing YAML file:", e)
-            return EasyDict()
-
-    cfg = EasyDict(cfg_dict)
-    return cfg
-
 # From pcdet.datasets.autolabel.kitti_object_eval_python.kitti_common.
 def get_kitti_gt_annos(label_type, label_folder, frame_ids=None):
     if label_type == "ground_truths":
@@ -743,9 +728,16 @@ if __name__ == "__main__":
 
     # Load EasyDict to access parameters.
     cfg = load_config()
+    path_manager = autolabel_path_manager(cfg_autolabel)
 
     folder_1 = cfg.DATA.PATH_GROUND_TRUTHS
-    folder_2 = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
+
+    if cfg.PIPELINE.VOTING_SCHEME == "MAJORITY":
+        folder_2 = path_manager.get_path("path_pseudo_labels_majority")
+    elif cfg.PIPELINE.VOTING_SCHEME == "NMS":
+        folder_2 = path_manager.get_path("path_pseudo_labels_nms")
+    else:
+        raise ValueError("Autolabel cfg.PIPELINE.VOTING_SCHEME is not valid. Please check.")
 
     ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, folder_1, folder_2)
 
