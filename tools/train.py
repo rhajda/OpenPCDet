@@ -193,6 +193,8 @@ def main():
         last_epoch=last_epoch, optim_cfg=cfg.OPTIMIZATION
     )
 
+    print(f"Using dataset {cfg['DATA_CONFIG']['DATA_PATH']} for training!")
+
     # -----------------------start training---------------------------
     logger.info('**********************Start training %s/%s(%s)**********************'
                 % (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))

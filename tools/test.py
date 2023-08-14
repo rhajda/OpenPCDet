@@ -283,6 +283,9 @@ def main():
     tb_log = SummaryWriter(log_dir=str(eval_output_dir / ('tensorboard_%s' % cfg.DATA_CONFIG.DATA_SPLIT['test'])))
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=test_set)
+
+    print(f"Using dataset {cfg['DATA_CONFIG']['DATA_PATH']} for testing!")
+
     with torch.no_grad():
         if args.eval_all:
             repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir, dist_test=dist_test, tb_log=tb_log)
