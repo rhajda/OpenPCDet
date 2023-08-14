@@ -250,7 +250,7 @@ def main():
         eval_output_dir = eval_output_dir / 'eval_all_default'
 
     if args.dataset is not None:
-        eval_output_dir = eval_output_dir / args.dataset
+        eval_output_dir = eval_output_dir / f"{args.dataset}_{int(cfg['DATA_CONFIG']['EVAL_RANGE'][0])}_{int(cfg['DATA_CONFIG']['EVAL_RANGE'][1])}"
 
     eval_output_dir.mkdir(parents=True, exist_ok=True)
     log_file = eval_output_dir / ('log_eval_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
