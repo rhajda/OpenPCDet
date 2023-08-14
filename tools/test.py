@@ -52,7 +52,7 @@ def parse_config():
 
     parser.add_argument('--max_waiting_mins', type=int, default=30, help='max waiting minutes')
     parser.add_argument('--start_epoch', type=int, default=0, help='')
-    parser.add_argument('--eval_tag', type=str, default='default', help='eval tag for this experiment')
+    parser.add_argument('--dataset', type=str, default='default', help='dataset used for testing')
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
@@ -68,6 +68,9 @@ def parse_config():
 
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs, cfg)
+
+    cfg["DATA_CONFIG"]["DATA_PATH"] = os.path.join(cfg["DATA_CONFIG"]["DATA_PATH"], args.dataset)
+    print(f"Using dataset {cfg['DATA_CONFIG']['DATA_PATH']} for testing!")
 
     return args, cfg
 
@@ -246,8 +249,8 @@ def main():
     else:
         eval_output_dir = eval_output_dir / 'eval_all_default'
 
-    if args.eval_tag is not None:
-        eval_output_dir = eval_output_dir / args.eval_tag
+    if args.dataset is not None:
+        eval_output_dir = eval_output_dir / args.dataset
 
     eval_output_dir.mkdir(parents=True, exist_ok=True)
     log_file = eval_output_dir / ('log_eval_%s.txt' % datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))

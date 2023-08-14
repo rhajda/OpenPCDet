@@ -517,6 +517,6 @@ if __name__ == '__main__':
         create_indy_infos(
             dataset_cfg=dataset_cfg,
             class_names=['Car'],
-            data_path=ROOT_DIR / 'data' / 'indy',
-            save_path=ROOT_DIR / 'data' / 'indy'
+            data_path=ROOT_DIR / 'data' / 'indy' / sys.argv[3],
+            save_path=ROOT_DIR / 'data' / 'indy' / sys.argv[3]
         )
