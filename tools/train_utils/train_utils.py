@@ -156,49 +156,50 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 )
 
             # Evaluate epoch
-            model.eval()
-            model.eval_mode = True
-            for module in model.module_list:
-                if hasattr(module, "eval_mode"):
-                    module.eval_mode = True
-            for tag, parm in model.named_parameters():
-                tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
+            if cur_epoch == 0 or cur_epoch > 70:
+                model.eval()
+                model.eval_mode = True
+                for module in model.module_list:
+                    if hasattr(module, "eval_mode"):
+                        module.eval_mode = True
+                for tag, parm in model.named_parameters():
+                    tb_log.add_histogram(tag, parm.data.cpu().numpy(), cur_epoch)
 
-            cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
-            ret_dict, val_loss_list = eval_utils.eval_one_epoch(
-                cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
-                result_dir=cur_result_dir, get_val_loss=True
-            )
-            if len(val_loss_list) > 0:
-                val_losses = [loss[0].item() for loss in val_loss_list]
-                val_loss_avg = sum(val_losses) / len(val_losses)
-                tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
-            result_str = ""
-            for key in sorted(ret_dict):
-                tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
-                result_str += str(ret_dict[key]) + ";"
-            result_str = result_str[:-1]
-            model.train()
-            model.eval_mode = False
-            for module in model.module_list:
-                if hasattr(module, "eval_mode"):
-                    module.eval_mode = False
+                cur_result_dir = eval_output_dir / ('epoch_%s' % cur_epoch) / cfg.DATA_CONFIG.DATA_SPLIT['test']
+                ret_dict, val_loss_list = eval_utils.eval_one_epoch(
+                    cfg, model, val_loader, epoch_id=cur_epoch, logger=logger, dist_test=dist_train,
+                    result_dir=cur_result_dir, get_val_loss=True
+                )
+                if len(val_loss_list) > 0:
+                    val_losses = [loss[0].item() for loss in val_loss_list]
+                    val_loss_avg = sum(val_losses) / len(val_losses)
+                    tb_log.add_scalar('eval_during_train/val_loss', val_loss_avg, cur_epoch)
+                result_str = ""
+                for key in sorted(ret_dict):
+                    tb_log.add_scalar(f"eval_during_train/{key}", ret_dict[key], cur_epoch)
+                    result_str += str(ret_dict[key]) + ";"
+                result_str = result_str[:-1]
+                model.train()
+                model.eval_mode = False
+                for module in model.module_list:
+                    if hasattr(module, "eval_mode"):
+                        module.eval_mode = False
 
-            # Save results to CSV
-            if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
-                with open(cur_result_dir / 'result.pkl', 'rb') as f:
-                    det_annos = pickle.load(f)
-                    total_pred_objects = 0
-                    for anno in det_annos:
-                        total_pred_objects += anno['name'].__len__()
-                    avg_pred_obj = total_pred_objects / max(1, len(det_annos))
-            else:
-                # results.pkl empty, no predictions
-                avg_pred_obj = 0.0
-            if len(val_loss_list) > 0:
-                with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
-                    csv_writer = csv.writer(f)
-                    csv_writer.writerow([cur_epoch, val_loss_avg, result_str, avg_pred_obj])
+                # Save results to CSV
+                if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
+                    with open(cur_result_dir / 'result.pkl', 'rb') as f:
+                        det_annos = pickle.load(f)
+                        total_pred_objects = 0
+                        for anno in det_annos:
+                            total_pred_objects += anno['name'].__len__()
+                        avg_pred_obj = total_pred_objects / max(1, len(det_annos))
+                else:
+                    # results.pkl empty, no predictions
+                    avg_pred_obj = 0.0
+                if len(val_loss_list) > 0:
+                    with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
+                        csv_writer = csv.writer(f)
+                        csv_writer.writerow([cur_epoch, val_loss_avg, result_str, avg_pred_obj])
 
 
 def model_state_to_cpu(model_state):
