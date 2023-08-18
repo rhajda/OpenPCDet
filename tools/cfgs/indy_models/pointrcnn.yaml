@@ -9,9 +9,9 @@ DATA_CONFIG:
 
         -   NAME: sample_points
             NUM_POINTS: {
-                'train': 32768, # original is half # taken from fixed radius!
-                'val': 32768,
-                'test': 32768
+                'train': 16384, # original is half # taken from fixed radius!
+                'val': 16384,
+                'test': 16384
             }
 
         -   NAME: shuffle_points
