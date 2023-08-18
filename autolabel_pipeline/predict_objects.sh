@@ -8,9 +8,9 @@
 # CKPT : Filename of the model.
 
 
-CFG_FILE="/home/tools/cfgs/autolabel_models/second.yaml"
-CKPT_DIR="/home/output/home/tools/cfgs/autolabel_models/second/default/ckpt/"
-CKPT='checkpoint_epoch_80.pth'
+CFG_FILE="/home/tools/cfgs/autolabel_models/pointrcnn.yaml"
+CKPT_DIR="/home/autolabel_data/autolabel_transfer/models/pointpillar"
+CKPT='checkpoint_epoch_75.pth'
 
 
 # Run:

@@ -91,13 +91,11 @@
 
 
 DATA:
-  #PATH_POINT_CLOUDS: "/home/data/autolabel/training/velodyne"
-  #PATH_GROUND_TRUTHS: "/home/data/autolabel/training/label_2"
-  PATH_POINT_CLOUDS: "/home/data/autolabel/training/velodyne"
-  PATH_GROUND_TRUTHS: "/home/data/autolabel/original/label_2"
+  PATH_POINT_CLOUDS: "/home/data/autolabel_og/training/velodyne"
+  PATH_GROUND_TRUTHS: "/home/data/autolabel_og/training/label_2"
   PROJECT:
-    DATASET: "data/autolabel"
-    AUTOLABEL_DATA: "autolabel_data/autolabel"
+    DATASET: "data/autolabel_transfer"
+    AUTOLABEL_DATA: "autolabel_data/kitti_all"
     CFG_DATASET: "tools/cfgs/dataset_configs/autolabel_dataset.yaml"
     CFG_MODELS: "tools/cfgs/autolabel_models"
     MODELS: [ "pointrcnn", "pointpillar", "second" ]
@@ -106,7 +104,7 @@ DATA:
 PIPELINE:
   SHOW_POINT_CLOUDS: False
   PRINT_INFORMATION: False
-  COMPUTE_VOTING_METRICS: True
+  COMPUTE_EVALUATION_METRICS: True
   VOTING_SCHEME: 'NMS'
   CLASSES: [ 'Car', 'Pedestrian', 'Cyclist' ]
 
@@ -136,5 +134,5 @@ PIPELINE:
         CONFIDENCE_PEDESTRIAN: 1
 
 VISUALISATION:
-  BBOXES_TO_LOAD: ['pseudo_labels']
-  POINT_CLOUD_ID_TO_VISUALIZE: '000135'
+  BBOXES_TO_LOAD: ['groundtruths', 'pointrcnn', 'pointpillar', 'second', 'pseudo_labels']
+  POINT_CLOUD_ID_TO_VISUALIZE: '000007'

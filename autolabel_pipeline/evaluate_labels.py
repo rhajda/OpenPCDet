@@ -234,7 +234,8 @@ def eval_class(FN_counts, gt_annos, dt_annos, current_classes, difficultys, metr
                 tp_all = 0
                 fp_all = 0
                 fn_all = 0
-                mre_error_all = [[], [], [], [], [], [], [], []]
+                mre_error_all_gt = [[], [], [], [], [], [], [], []]
+                mre_error_all_dt = [[], [], [], [], [], [], []]
                 ###############
 
                 thresholdss = []
@@ -261,15 +262,23 @@ def eval_class(FN_counts, gt_annos, dt_annos, current_classes, difficultys, metr
                     fn_all += fn
 
                     if tp != 0:
-                        mre_frame = compute_mean_relative_error(tp_matches, i, gt_annos, dt_annos, overlaps)
-                        mre_error_all[0].extend(mre_frame[0]) # error_loc_x
-                        mre_error_all[1].extend(mre_frame[1]) # error_loc_y
-                        mre_error_all[2].extend(mre_frame[2]) # error_loc_z
-                        mre_error_all[3].extend(mre_frame[3]) # error_dim_len
-                        mre_error_all[4].extend(mre_frame[4]) # error_dim_wi
-                        mre_error_all[5].extend(mre_frame[5]) # error_dim_ht
-                        mre_error_all[6].extend(mre_frame[6]) # error_rot
-                        mre_error_all[7].extend(mre_frame[7]) # overlap_bev
+                        mre_frame_gt, mre_frame_dt = compute_relative_error(tp_matches, i, gt_annos, dt_annos, overlaps)
+                        mre_error_all_gt[0].extend(mre_frame_gt[0]) # loc_x gt
+                        mre_error_all_gt[1].extend(mre_frame_gt[1]) # loc_y gt
+                        mre_error_all_gt[2].extend(mre_frame_gt[2]) # loc_z gt
+                        mre_error_all_gt[3].extend(mre_frame_gt[3]) # dim_len gt
+                        mre_error_all_gt[4].extend(mre_frame_gt[4]) # dim_wi gt
+                        mre_error_all_gt[5].extend(mre_frame_gt[5]) # dim_ht gt
+                        mre_error_all_gt[6].extend(mre_frame_gt[6]) # rot gt
+                        mre_error_all_gt[7].extend(mre_frame_gt[7]) # overlap_bev gt
+
+                        mre_error_all_dt[0].extend(mre_frame_dt[0])  # loc_x dt
+                        mre_error_all_dt[1].extend(mre_frame_dt[1])  # loc_y dt
+                        mre_error_all_dt[2].extend(mre_frame_dt[2])  # loc_z dt
+                        mre_error_all_dt[3].extend(mre_frame_dt[3])  # dim_len dt
+                        mre_error_all_dt[4].extend(mre_frame_dt[4])  # dim_wi dt
+                        mre_error_all_dt[5].extend(mre_frame_dt[5])  # dim_ht dt
+                        mre_error_all_dt[6].extend(mre_frame_dt[6])  # rot dt
                     ###############
 
                     thresholdss += thresholds.tolist()
@@ -277,14 +286,22 @@ def eval_class(FN_counts, gt_annos, dt_annos, current_classes, difficultys, metr
                 ### AUTOLABEL ###
                 eval_dict[current_class][min_overlap] = {
                     'confusion_mat': {'TP': tp_all, 'FP': fp_all, 'FN': fn_all}}
-                eval_dict[current_class][min_overlap]['mre'] = {'error': {'loc_x': mre_error_all[0],
-                                                                          'loc_y': mre_error_all[1],
-                                                                          'loc_z': mre_error_all[2],
-                                                                          'dim_len': mre_error_all[3],
-                                                                          'dim_wi': mre_error_all[4],
-                                                                          'dim_ht': mre_error_all[5],
-                                                                          'rot_z': mre_error_all[6]},
-                                                                'overlap': mre_error_all[7]}
+                eval_dict[current_class][min_overlap]['mre'] = {'gt': {'loc_x': mre_error_all_gt[0],
+                                                                       'loc_y': mre_error_all_gt[1],
+                                                                       'loc_z': mre_error_all_gt[2],
+                                                                       'dim_len': mre_error_all_gt[3],
+                                                                       'dim_wi': mre_error_all_gt[4],
+                                                                       'dim_ht': mre_error_all_gt[5],
+                                                                       'rot_z': mre_error_all_gt[6],
+                                                                       'overlap': mre_error_all_gt[7]},
+                                                                'dt': {'loc_x': mre_error_all_dt[0],
+                                                                       'loc_y': mre_error_all_dt[1],
+                                                                       'loc_z': mre_error_all_dt[2],
+                                                                       'dim_len': mre_error_all_dt[3],
+                                                                       'dim_wi': mre_error_all_dt[4],
+                                                                       'dim_ht': mre_error_all_dt[5],
+                                                                       'rot_z': mre_error_all_dt[6]}
+                                                                }
                 #################
                 thresholdss = np.array(thresholdss)
                 thresholds = get_thresholds(thresholdss, total_num_valid_gt)
@@ -443,9 +460,6 @@ def get_official_eval_result(FN_counts, gt_annos, dt_annos, current_classes, PR_
             '''
 
     return result, ret_dict, eval_dict, mAP3d_R40
-
-
-
 
 
 
@@ -610,66 +624,65 @@ def compute_performance_metrics(cfg, frame_IDs, folder_1, folder_2):
     return result, ret_dict, my_eval_dict, mAP3d_R40, FN_counts, empty_frame_list
 
 # Computes the MRE as proposed by Peng et al. [30]
-def compute_mean_relative_error(matches, current_index ,gt_annos, dt_annos, overlaps):
+def compute_relative_error(matches, current_index ,gt_annos, dt_annos, overlaps):
     """
     matches: 2D array (N,2) --> [[index_detection, index_groundtruth]] ([[det_idx, i]])
     outputs : error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht, error_rot
     """
 
     overlap_bev = []
-    error_loc_x = []
-    error_loc_y = []
-    error_loc_z = []
-    error_dim_len = []
-    error_dim_wi = []
-    error_dim_ht = []
-    error_rot = []
-
-    #print("matches: ", matches)
+    gt_loc_x, dt_loc_x = [], []
+    gt_loc_y, dt_loc_y = [], []
+    gt_loc_z, dt_loc_z = [], []
+    gt_dim_len, dt_dim_len = [], []
+    gt_dim_wi, dt_dim_wi = [], []
+    gt_dim_ht, dt_dim_ht = [], []
+    gt_rot, dt_rot = [], []
 
     for j in range (len(matches)):
 
         dt_frame_index = matches[j][0]
         gt_frame_index = matches[j][1]
 
-        gt_loc =  gt_annos[current_index]['location'][gt_frame_index]
-        gt_dim = gt_annos[current_index]['dimensions'][gt_frame_index]
-        gt_rot = gt_annos[current_index]['rotation_y'][gt_frame_index]
+        gt_loc_x.append(gt_annos[current_index]['location'][gt_frame_index][0])
+        gt_loc_y.append(gt_annos[current_index]['location'][gt_frame_index][1])
+        gt_loc_z.append(gt_annos[current_index]['location'][gt_frame_index][2])
+        gt_dim_len.append(gt_annos[current_index]['dimensions'][gt_frame_index][0])
+        gt_dim_wi.append(gt_annos[current_index]['dimensions'][gt_frame_index][1])
+        gt_dim_ht.append(gt_annos[current_index]['dimensions'][gt_frame_index][2])
+        gt_rot.append(gt_annos[current_index]['rotation_y'][gt_frame_index])
 
-        dt_loc = dt_annos[current_index]['location'][dt_frame_index]
-        dt_dim = dt_annos[current_index]['dimensions'][dt_frame_index]
-        dt_rot = dt_annos[current_index]['rotation_y'][dt_frame_index]
-
-        #print("GT: ", gt_loc, gt_dim, gt_rot)
-        #print("DT: ", dt_loc, dt_dim, dt_rot)
+        dt_loc_x.append(dt_annos[current_index]['location'][dt_frame_index][0])
+        dt_loc_y.append(dt_annos[current_index]['location'][dt_frame_index][1])
+        dt_loc_z.append(dt_annos[current_index]['location'][dt_frame_index][2])
+        dt_dim_len.append(dt_annos[current_index]['dimensions'][dt_frame_index][0])
+        dt_dim_wi.append(dt_annos[current_index]['dimensions'][dt_frame_index][1])
+        dt_dim_ht.append(dt_annos[current_index]['dimensions'][dt_frame_index][2])
+        dt_rot.append(dt_annos[current_index]['rotation_y'][dt_frame_index])
 
         overlap_bev.append(overlaps[current_index][dt_frame_index][gt_frame_index])
 
-        error_loc_x.append(abs(gt_loc[0] - dt_loc[0]) / abs(gt_loc[0]) if gt_loc[0] != 0 else 0)
-        error_loc_y.append(abs(gt_loc[1] - dt_loc[1]) / abs(gt_loc[1]) if gt_loc[1] != 0 else 0)
-        error_loc_z.append(abs(gt_loc[2] - dt_loc[2]) / abs(gt_loc[2]) if gt_loc[2] != 0 else 0)
-        error_dim_len.append(abs(gt_dim[0] - dt_dim[0]) / abs(gt_dim[0]) if gt_dim[0] != 0 else 0)
-        error_dim_wi.append(abs(gt_dim[2] - dt_dim[2]) / abs(gt_dim[2]) if gt_dim[2] != 0 else 0)
-        error_dim_ht.append(abs(gt_dim[1] - dt_dim[1]) / abs(gt_dim[1]) if gt_dim[1] != 0 else 0)
-        error_rot.append(abs(gt_rot - dt_rot) / (2 * np.pi))
+        #print("GT: ",
+        #      gt_annos[current_index]['location'][gt_frame_index],
+        #      gt_annos[current_index]['dimensions'][gt_frame_index],
+        #      gt_annos[current_index]['rotation_y'][gt_frame_index])
+        #print("DT: ",
+        #      dt_annos[current_index]['location'][dt_frame_index],
+        #      dt_annos[current_index]['dimensions'][dt_frame_index],
+        #      dt_annos[current_index]['rotation_y'][dt_frame_index])
+        #print("overlaps: ", overlaps[current_index][dt_frame_index][gt_frame_index])
 
-    #print("overlap_bev: ", overlap_bev)
-    #print("error_loc_x: ", error_loc_x)
-    #print("error_loc_y: ", error_loc_y)
-    #print("error_loc_z: ", error_loc_z)
-    #print("error_dim_len: ", error_dim_len)
-    #print("error_dim_wi: ", error_dim_wi)
-    #print("error_dim_ht: ", error_dim_ht)
-    #print("error_rot: ", error_rot)
-
-    return [error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht, error_rot, overlap_bev]
+    return [gt_loc_x, gt_loc_y, gt_loc_z, gt_dim_len, gt_dim_wi, gt_dim_ht, gt_rot, overlap_bev], \
+            [dt_loc_x, dt_loc_y, dt_loc_z, dt_dim_len, dt_dim_wi, dt_dim_ht, dt_rot]
 
 # Function generates plots for mean relative error.
-def generate_evaluation_results(result, FN_counts, empty_frame_list, eval_dict):
+def generate_evaluation_results(cfg, result, FN_counts, empty_frame_list, eval_dict):
+
     print("-> generate_evalutation_results")
 
     # Print info
     print("empty_frame_list: ", empty_frame_list)
+    print("empty_frame_list length: ", len(empty_frame_list))
     print("FN_counts: ", FN_counts)
     print("\n", "_____________________", "\n", "result: ", result)
     for key1, value1 in eval_dict.items():
@@ -679,34 +692,139 @@ def generate_evaluation_results(result, FN_counts, empty_frame_list, eval_dict):
             print(confusion_mat)
             print('---')
 
-    FLAG_PLOT = False
-    if FLAG_PLOT:
-        # Plot info
-        current_class = 0
-        current_min_overlap = 0.7
-        folder_path = "/home/autolabel_pipeline/evaluation"
-        plot_filename = 'boxplot_GT_MV_MRE_0_BOX.svg'
+    # Error info from eval_dict
+    label_mapping = {"Car": 0, "Pedestrian": 1, "Cyclist": 2}
+    overlap_mapping = {"Car": 0.7, "Pedestrian": 0.5, "Cyclist": 0.5}
 
-        os.makedirs(folder_path, exist_ok=True)
+    for label in cfg.PIPELINE.CLASSES:
+        print(f"Class: {label}")
+        current_class = label_mapping[label]
+        current_min_overlap = overlap_mapping[label]
 
-        error_loc_x = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['loc_x']]
-        error_loc_y = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['loc_y']]
-        error_loc_z = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['loc_z']]
-        error_dim_len = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['dim_len']]
-        error_dim_wi = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['dim_wi']]
-        error_dim_ht = [i * 100 for i in eval_dict[current_class][current_min_overlap]['mre']['error']['dim_ht']]
+        # write dictionary info to lists for current_class and current_min_overlap:
+        gt_loc_x = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['loc_x'])
+        gt_loc_y = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['loc_y'])
+        gt_loc_z = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['loc_z'])
+        gt_dim_len = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['dim_len'])
+        gt_dim_wi = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['dim_wi'])
+        gt_dim_ht = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['dim_ht'])
+        gt_rot = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['rot_z'])
+        overlap = np.array(eval_dict[current_class][current_min_overlap]['mre']['gt']['overlap'])
+        dt_loc_x = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['loc_x'])
+        dt_loc_y = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['loc_y'])
+        dt_loc_z = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['loc_z'])
+        dt_dim_len = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['dim_len'])
+        dt_dim_wi = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['dim_wi'])
+        dt_dim_ht = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['dim_ht'])
+        dt_rot = np.array(eval_dict[current_class][current_min_overlap]['mre']['dt']['rot_z'])
 
-        data = [error_loc_x, error_loc_y, error_loc_z, error_dim_len, error_dim_wi, error_dim_ht]
-        names = ['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht']
+        #print(f"gt_loc_x: {gt_loc_x}\ngt_loc_y: {gt_loc_y}\ngt_loc_z: {gt_loc_z}\ngt_dim_len: {gt_dim_len}\n"
+        #      f"gt_dim_wi: {gt_dim_wi}\ngt_dim_ht: {gt_dim_ht}\ngt_rot: {gt_rot}\noverlap: {overlap}\n"
+        #      f"dt_loc_x: {dt_loc_x}\ndt_loc_y: {dt_loc_y}\ndt_loc_z: {dt_loc_z}\ndt_dim_len: {dt_dim_len}\n"
+        #      f"dt_dim_wi: {dt_dim_wi}\ndt_dim_ht: {dt_dim_ht}\ndt_rot: {dt_rot}")
 
-        plt.boxplot(data, vert=False)
-        plt.yticks(range(1, len(names) + 1), names)
-        plt.xlabel('Relative error in %')
+        # Compute absolute error arrays
+        abs_error_loc_x = np.abs(gt_loc_x - dt_loc_x)
+        abs_error_loc_y = np.abs(gt_loc_y - dt_loc_y)
+        abs_error_loc_z = np.abs(gt_loc_z - dt_loc_z)
+        abs_error_dim_len = np.abs(gt_dim_len - dt_dim_len)
+        abs_error_dim_wi = np.abs(gt_dim_wi - dt_dim_wi)
+        abs_error_dim_ht = np.abs(gt_dim_ht - dt_dim_ht)
+        abs_error_rot = np.abs((gt_rot - dt_rot + np.pi) % (2 * np.pi) - np.pi)
 
-        file_path = os.path.join(folder_path, plot_filename)
-        plt.savefig(file_path, format='svg')
+        abs_error_rot_front = abs_error_rot[(abs_error_rot >= 0) & (abs_error_rot <= np.pi / 2)]
+        abs_error_rot_back = abs_error_rot[(abs_error_rot > np.pi / 2) & (abs_error_rot <= np.pi)]
+        abs_error_rot_back = np.abs(abs_error_rot_back - np.pi)
 
-        print("SAVED SUCCESSFULLY")
+
+
+        # Calculate the percentages
+        percentage_under_pi_half = (len(abs_error_rot_front) / len(abs_error_rot)) * 100
+        print(f"Heading: {percentage_under_pi_half}% of bboxes head in the right direction ({label}: {len(abs_error_rot)} TPs.)")
+
+        #print(f"abs_error_loc_x (m): {abs_error_loc_x}\nabs_error_loc_y (m): {abs_error_loc_y}\n"
+        #      f"abs_error_loc_z (m): {abs_error_loc_z}\nabs_error_dim_len (m): {abs_error_dim_len}\n"
+        #      f"abs_error_dim_wi (m): {abs_error_dim_wi}\nabs_error_dim_ht (m): {abs_error_dim_ht}\n"
+        #      f"abs_error_rotation: {abs_error_rot}")
+
+        # Compute mean relative error
+        mean_relative_error_loc_x = np.mean(abs_error_loc_x / np.abs(gt_loc_x))
+        mean_relative_error_loc_y = np.mean(abs_error_loc_y / np.abs(gt_loc_y))
+        mean_relative_error_loc_z = np.mean(abs_error_loc_z / np.abs(gt_loc_z))
+        mean_relative_error_dim_len = np.mean(abs_error_dim_len / np.abs(gt_dim_len))
+        mean_relative_error_dim_wi = np.mean(abs_error_dim_wi / np.abs(gt_dim_wi))
+        mean_relative_error_dim_ht = np.mean(abs_error_dim_ht / np.abs(gt_dim_ht))
+        mean_relative_error_rot = np.mean(abs_error_rot / (2 * np.pi))
+        mean_overlap = np.mean(overlap)
+
+
+        print(f"Mean relative error loc_x: {mean_relative_error_loc_x}\n"
+              f"Mean relative error loc_y: {mean_relative_error_loc_y}\n"
+              f"Mean relative error loc_z: {mean_relative_error_loc_z}\n"
+              f"Mean relative error dim_len: {mean_relative_error_dim_len}\n"
+              f"Mean relative error dem_wi: {mean_relative_error_dim_wi}\n"
+              f"Mean relative error dim_ht: {mean_relative_error_dim_ht}\n"
+              f"Mean relative error rot_y: {mean_relative_error_rot}\n"
+              f"Mean overlap bev: {mean_overlap}\n")
+
+        below_threshold_values = [value for value in overlap if value < current_min_overlap]
+        print("below_threshold_values: ", below_threshold_values)
+
+
+
+        FLAG_PLOT = True
+        if FLAG_PLOT:
+
+            path_project_evaluation = os.path.join(path_manager.get_path("path_project_data"), "evaluation")
+            os.makedirs(path_project_evaluation, exist_ok=True)
+
+            # Define data and plot details
+            data_list = [[abs_error_loc_x, abs_error_loc_y, abs_error_loc_z, abs_error_dim_len, abs_error_dim_wi,
+                          abs_error_dim_ht],
+                         [abs_error_rot_front, abs_error_rot_back],
+                         [overlap]]
+            title_list = [f'Bounding boxes {label} absolute error',
+                          f'Bounding boxes {label} absolute rotation error',
+                          f'Overlap bounding boxes {label} to ground truth']
+            names_list = [['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht'],
+                          [f'rot_z (support: {len(abs_error_rot_front)})',
+                           f'rot_z (reversed, support: {len(abs_error_rot_back)})'],
+                          ['overlap bev']]
+            xlabel_list = ['Absolute error in meter', 'Absolute error in radians', 'Overlap in %']
+
+            my_figsize = [(10, 6), (10,2.5), (10,2)]
+
+            for i, (data, names, xlabel, title) in enumerate(zip(data_list, names_list, xlabel_list, title_list)):
+                fig, ax = plt.subplots(figsize=my_figsize[i])
+
+                ax.boxplot(data, vert=False)
+                ax.set_yticks(range(1, len(names) + 1))
+                ax.set_yticklabels(names)
+                ax.set_xlabel(xlabel)
+                ax.set_title(title)
+                ax.grid(False)
+
+                plt.tight_layout()
+
+                plot_filename = f'boxplot_MAE_{cfg.PIPELINE.VOTING_SCHEME}_{label}_plot_{i}.svg'
+                file_path = os.path.join(path_project_evaluation, plot_filename)
+                plt.savefig(file_path, format='svg')
+                plt.close()
+                print(f"SAVED SUCCESSFULLY: {plot_filename}")
+
+                # Print mean, median, and quantiles for the current plot
+                print(f"Statistics for {title}:")
+                for j, name in enumerate(names):
+                    mean = np.mean(data[j])
+                    median = np.median(data[j])
+                    quantiles = np.percentile(data[j], [25, 75])
+
+                    print(f"{name}:")
+                    print(f"  Mean: {mean:.2f}")
+                    print(f"  Median: {median:.2f}")
+                    print(f"  Q1: {quantiles[0]:.2f}")
+                    print(f"  Q3: {quantiles[1]:.2f}")
+
 
 
 
@@ -720,24 +838,30 @@ def main_evaluate_labels(cfg, folder_1, folder_2):
                                                                                                          folder_1,
                                                                                                          folder_2)
 
-    generate_evaluation_results(result, FN_counts, empty_frame_list, my_eval_dict)
+    generate_evaluation_results(cfg, result, FN_counts, empty_frame_list, my_eval_dict)
 
     return ret_dict, mAP3d_R40, my_eval_dict
+
+
 
 if __name__ == "__main__":
 
     # Load EasyDict to access parameters.
     cfg = load_config()
-    path_manager = autolabel_path_manager(cfg_autolabel)
+    path_manager = autolabel_path_manager(cfg)
 
     folder_1 = cfg.DATA.PATH_GROUND_TRUTHS
-
     if cfg.PIPELINE.VOTING_SCHEME == "MAJORITY":
-        folder_2 = path_manager.get_path("path_pseudo_labels_majority")
+        path_pseudo_labels = path_manager.get_path("path_pseudo_labels_majority")
     elif cfg.PIPELINE.VOTING_SCHEME == "NMS":
-        folder_2 = path_manager.get_path("path_pseudo_labels_nms")
+        path_pseudo_labels = path_manager.get_path("path_pseudo_labels_nms")
     else:
         raise ValueError("Autolabel cfg.PIPELINE.VOTING_SCHEME is not valid. Please check.")
 
-    ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, folder_1, folder_2)
+    list_to_evaluate = [path_pseudo_labels]
+    for folder_2 in list_to_evaluate:
+        print("folder_1: ", folder_1)
+        print("folder_2:", folder_2)
+        ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, folder_1, folder_2)
+
 

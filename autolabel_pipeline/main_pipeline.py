@@ -10,7 +10,8 @@ import os
 
 from base_functions import load_config, autolabel_path_manager
 from main_autolabel import main_pseudo_label
-from evaluate_labels import get_label_anno
+from evaluate_labels import get_label_anno, main_evaluate_labels
+from pcdet.datasets.autolabel.autolabel_dataset import create_autolabel_infos
 
 # Define a working path used to access different paths
 working_path = pathlib.Path(__file__).resolve().parents[1]
@@ -43,6 +44,97 @@ def new_project():
             exit()
         else:
             os.mkdir(os.path.join(working_path,cfg.DATA.PROJECT.AUTOLABEL_DATA))
+    return
+
+# Function that moves the model files from models (autolabel_data) to past_iterations folder.
+def prepare_autolabel_data_folder(cfg_autolabel, path_manager):
+    # Function creates past_iteration path. Subsequently, creates folders to save the used models and iteration XX.
+    def iteration_folder(path_past_iterations):
+
+        if not os.path.exists(path_past_iterations):
+            os.mkdir(path_past_iterations)
+            os.mkdir(os.path.join(path_past_iterations, "iteration_00"))
+            path_current_iteration = os.path.join(path_past_iterations, "iteration_00")
+        else:
+            subdirectories = [item for item in os.listdir(path_past_iterations) if
+                              os.path.isdir(os.path.join(path_past_iterations, item))]
+            if not subdirectories:
+                os.mkdir(os.path.join(path_past_iterations, "iteration_00"))
+                path_current_iteration = os.path.join(path_past_iterations, "iteration_00")
+            else:
+                iteration_numbers = [int(subdir.split('_')[1]) for subdir in subdirectories if
+                                     subdir.startswith("iteration_")]
+                if iteration_numbers:
+                    next_iteration_number = max(iteration_numbers) + 1
+                else:
+                    next_iteration_number = 0
+                next_iteration_folder = f"iteration_{next_iteration_number:02}"
+                os.mkdir(os.path.join(path_past_iterations, next_iteration_folder))
+                path_current_iteration = os.path.join(path_past_iterations, next_iteration_folder)
+        return path_current_iteration
+    # Function empties a folder.
+    def empty_folder(folder_path):
+        for item in os.listdir(folder_path):
+            item_path = os.path.join(folder_path, item)
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+            else:
+                os.remove(item_path)
+        return
+
+    print("-> prepare autolabel data folder")
+    path_past_iterations = os.path.join(path_manager.get_path("path_model_ckpt_dir"), "past_iterations")
+    path_current_iteration = iteration_folder(path_past_iterations)
+    print(f"Save models of past iteration in {path_current_iteration}")
+
+
+    # Copy folders to iteration_XX folder
+    shutil.copytree(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointrcnn"),
+                    os.path.join(path_current_iteration, "pointrcnn"))
+    shutil.copytree(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointpillar"),
+                    os.path.join(path_current_iteration, "pointpillar"))
+    shutil.copytree(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "second"),
+                    os.path.join(path_current_iteration, "second"))
+
+    # Remove the contents of models/
+    empty_folder(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointrcnn"))
+    empty_folder(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointpillar"))
+    empty_folder(os.path.join(path_manager.get_path("path_model_ckpt_dir"), "second"))
+
+    # Replace models/ ckpts with new selected ckpts.
+    selected_ckpts = []
+    for model in cfg_autolabel.DATA.PROJECT.MODELS:
+        this_ckpt = input(f"Input checkpoint epoch to load for model {model} (checkpoint_  .pth is added automatically): ")
+        selected_ckpts.append("checkpoint_epoch_" + this_ckpt + ".pth")
+    print(f"Selected model checkpoints: {selected_ckpts} for models {cfg_autolabel.DATA.PROJECT.MODELS}")
+
+    confirmation = input(f"Confirm your selection (y/n): ")
+    if confirmation == "y":
+        for element in range(len(cfg_autolabel.DATA.PROJECT.MODELS)):
+            ckpt = selected_ckpts[element]
+            model = cfg_autolabel.DATA.PROJECT.MODELS[element]
+
+            if model == "pointrcnn":
+                path_ckpt_source = os.path.join(path_manager.get_path("path_pcdet_pointrcnn"), ckpt)
+                path_ckpt_destination = os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointrcnn")
+
+            elif model == "pointpillar":
+                path_ckpt_source = os.path.join(path_manager.get_path("path_pcdet_pointpillar"), ckpt)
+                path_ckpt_destination = os.path.join(path_manager.get_path("path_model_ckpt_dir"), "pointpillar")
+
+            elif model == "second":
+                path_ckpt_source = os.path.join(path_manager.get_path("path_pcdet_second"), ckpt)
+                path_ckpt_destination = os.path.join(path_manager.get_path("path_model_ckpt_dir"), "second")
+
+            else:
+                raise ValueError("Error in prepare_autolabel_data_folder. ")
+
+            shutil.copy(path_ckpt_source, path_ckpt_destination)
+
+    else:
+        exit()
+    return
+
 
 
 # MODE 1 sub-functions
@@ -54,21 +146,21 @@ def cfg_train_model_update(path_manager, model, print_cfg):
     with open(cfg_file_model_path, 'r') as cfg_file:
         cfg_data = yaml.safe_load(cfg_file)
     # Rate at which evaluation is triggered. Every X epochs.
-    cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 4
+    cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 1
     # Minimum number of training epochs before evaluating.
     cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 59
 
     # Model specific parameters, adapted to autolabel needs.
     if model == "pointrcnn":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #75
+        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 85 #75
         cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6
 
     if model == "pointpillar":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #75
+        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 85 #75
         cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10
 
     if model == "second":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 80 #80
+        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 90 #80
         cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
 
     with open(cfg_file_model_path, 'w') as updated_cfg_file:
@@ -81,6 +173,7 @@ def cfg_train_model_update(path_manager, model, print_cfg):
 
 # Function that triggers openPCDet training.
 def model_training(working_path, path_manager, model):
+    print("-> Training.")
 
     cfg_file_model_path = os.path.join(path_manager.get_path("path_cfg_models"), (model + ".yaml"))
 
@@ -140,15 +233,22 @@ def count_file_number_in_folder(this_folder):
     return
 
 # Function that updates the config file of the dataset used.
-def cfg_dataset_update(cfg_dataset_path, print_cfg):
+def cfg_dataset_update(cfg_autolabel, path_manager, print_cfg):
+    print("-> Updating dataset cfg.")
+
+    cfg_dataset_path = path_manager.get_path("path_cfg_dataset")
 
     with open(cfg_dataset_path, 'r') as cfg_file:
         cfg_data = yaml.safe_load(cfg_file)
 
+    # Update DATASET path
+    cfg_data['DATA_PATH'] = os.path.join("..", cfg_autolabel.DATA.PROJECT.DATASET)
     # Update DATA_SPLIT
-    cfg_data['DATA_SPLIT']['test'] = 'pseudo_label'
+    #cfg_data['DATA_SPLIT']['test'] = 'pseudo_label'
+    cfg_data['DATA_SPLIT']['test'] = 'val'
     # Update INFO_PATH
-    cfg_data['INFO_PATH']['test'] = ['kitti_infos_pseudo_label.pkl']
+    #cfg_data['INFO_PATH']['test'] = ['kitti_infos_pseudo_label.pkl']
+    cfg_data['INFO_PATH']['test'] = ['kitti_infos_val.pkl']
 
 
     with open(cfg_dataset_path, 'w') as updated_cfg_file:
@@ -163,6 +263,7 @@ def cfg_dataset_update(cfg_dataset_path, print_cfg):
 
 # Function that predicts objects having a trained model and a set of unlabeled data.
 def predict_objects(working_path, path_manager, model):
+    print("-> Predicting objects.")
 
     path_cfg_file_model = os.path.join(path_manager.get_path("path_cfg_models"), (model + ".yaml"))
     path_ckpt_dir = os.path.join(path_manager.get_path("path_model_ckpt_dir"), model)
@@ -194,16 +295,41 @@ def predict_objects(working_path, path_manager, model):
 
     return
 
+# Function that triggers the evaluate_labels script with according parameters.
+def evaluation_metrics(cfg_autolabel, path_manager):
+    print("-> Evaluation metrics against ground truth.")
+
+    folder_1 = cfg_autolabel.DATA.PATH_GROUND_TRUTHS
+    if cfg_autolabel.PIPELINE.VOTING_SCHEME == "MAJORITY":
+        path_pseudo_labels = path_manager.get_path("path_pseudo_labels_majority")
+    elif cfg_autolabel.PIPELINE.VOTING_SCHEME == "NMS":
+        path_pseudo_labels = path_manager.get_path("path_pseudo_labels_nms")
+    else:
+        raise ValueError("Autolabel cfg_autolabel.PIPELINE.VOTING_SCHEME is not valid. Please check.")
+
+    list_to_evaluate = [path_manager.get_path("path_ptrcnn_predictions"),
+                        path_manager.get_path("path_ptpillar_predictions"),
+                        path_manager.get_path("path_second_predictions"),
+                        path_pseudo_labels]
+
+    for folder_2 in list_to_evaluate:
+        print("folder_1: ", folder_1)
+        print("folder_2:", folder_2)
+        ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg_autolabel, folder_1, folder_2)
+
+    return
+
 # Function that converts pseudo-labels to training format.
-def convert_pseudo_labels_to_labels(cfg):
+def convert_pseudo_labels_to_labels(cfg, path_manager):
+    print("-> Converting pseudo-labels to kitti label format.")
 
     # initial path
     if cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
-        initial_path = cfg.DATA.PATH_PSEUDO_LABELS.PSEUDO_LABELS_MAJORITY
+        initial_path = path_manager.get_path("path_pseudo_labels_majority")
         goal_path = pathlib.Path(os.path.join(path_manager.get_path("path_output_labels"), "majority_voting"))
 
     elif cfg.DATA.PIPELINE.VOTING_SCHEME == 'NMS':
-        initial_path = cfg.PATH_PSEUDO_LABELS.PSEUDO_LABELS_NMS
+        initial_path = ath_manager.get_path("path_pseudo_labels_nms")
         goal_path = pathlib.Path(os.path.join(path_manager.get_path("path_output_labels"), "nms_voting"))
     else:
         raise ValueError("DATA.PIPELINE.VOTING_SCHEME is not valid.")
@@ -264,6 +390,7 @@ def convert_pseudo_label_to_kitti_label(label_path, frame_id, goal_path):
 
 # Function that makes a backup of the originally available training data to avoid overwriting it with pseudo-labels.
 def backup_original_training_data(path_manager):
+    print("-> Backup the original label and train info. ")
 
     path_dataset = path_manager.get_path("path_project_dataset")
     path_dataset_backup = pathlib.Path(os.path.join(path_dataset, "original"))
@@ -283,6 +410,7 @@ def backup_original_training_data(path_manager):
 
 # Function that updates the train set with available pseudo-labels.
 def update_trainset(path_manager, include_og_train_data):
+    print("-> Updating the trainset (ImageSets + labels)")
 
     # Get correct paths.
     if cfg_autolabel.PIPELINE.VOTING_SCHEME == "MAJORITY":
@@ -349,7 +477,8 @@ def update_trainset(path_manager, include_og_train_data):
     return
 
 # Function that creates the autolabel training .pkl files necessary for training.
-def create_autolabel_training_infos(path_manager):
+def create_autolabel_training_infos(path_manager, cfg_autolabel):
+    print("-> Creating training .pkl files.")
 
     # remove old info files
     directory_to_clean = path_manager.get_path("path_project_dataset")
@@ -358,16 +487,18 @@ def create_autolabel_training_infos(path_manager):
         if os.path.isfile(item_path) and any(item.lower().endswith(ext) for ext in [".pkl"]):
             os.remove(item_path)
 
-
-    # trigger create_autolabel_infos
-    path_cfg_dataset = path_manager.get_path("path_cfg_dataset")
-    autolabel_script = "python -m pcdet.datasets.autolabel.autolabel_dataset create_autolabel_infos"
-    command = f"{autolabel_script} {path_cfg_dataset}"
-
+    # trigger create_autolabel_infos directly.
     try:
-        subprocess.run(command, shell=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Error executing the script: {e}")
+        with open(path_manager.get_path("path_cfg_dataset"), 'r') as file:
+            dataset_cfg = EasyDict(yaml.safe_load(file))
+    except Exception as e:
+        print("Error loading YAML file:", e)
+
+    # get infos from cfg_autolabel.
+    create_autolabel_infos(dataset_cfg=dataset_cfg,
+                           class_names=cfg_autolabel.PIPELINE.CLASSES,
+                           data_path=pathlib.Path(path_manager.get_path("path_project_dataset")),
+                           save_path=pathlib.Path(path_manager.get_path("path_project_dataset")))
 
     return
 
@@ -401,50 +532,62 @@ def mode_1():
         copy_pth_file(model_file_pointrcnn, origin_path_pointrcnn, goal_path_pointrcnn)
         copy_pth_file(model_file_pointpillar, origin_path_pointpillar, goal_path_pointpillar)
         copy_pth_file(model_file_second, origin_path_second, goal_path_second)
+    return
 
 # MODE 2
 def mode_2(cfg_autolabel, path_manager, models):
 
+    FLAG_PREPARE_AUTOLABEL_DATA_FOLDER = False
+    FLAG_PREDICT_OBJECTS = False
+    FLAG_VOTE_PSEUDO_LABELS = False
+    FLAG_COMPUTE_EVALUATION_METRICS = True
+    FLAG_CONVERT_PSEUDO_LABELS = False
+    FLAG_BACKUP_OG_TRAIN = False
+    FLAG_UPDATE_TRAINSET = False
+    FLAG_CREATE_AUTOLABEL_INFOS = False
+    FLAG_TRAIN = False
+
     # Prerequisite: /home/autolabel_data/autolabel/models contains the selected models for this iteration.
     print("--> Semi-supervised pseudo-labeling pipeline. Mode: Loop.")
 
-    FLAG_PREDICT_OBJECTS = False
+    if FLAG_PREPARE_AUTOLABEL_DATA_FOLDER:
+        prepare_autolabel_data_folder(cfg_autolabel, path_manager)
+
     if FLAG_PREDICT_OBJECTS:
         # Update cfg_dataset to predict pseudo-label Imageset.
-        cfg_dataset_update(path_manager.get_path("path_cfg_dataset"), False)
-
+        cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True)
         # Predict the objects in frames using the pre-trained models.
         for model in models:
             print("-> predict objects for: ", model)
             predict_objects(working_path, path_manager, model)
 
-    FLAG_VOTE_PSEUDO_LABELS = False
     if FLAG_VOTE_PSEUDO_LABELS:
         main_pseudo_label(cfg_autolabel, 10000, False, 0)
 
-    FLAG_CONVERT_PSEUDO_LABELS = False
-    if FLAG_CONVERT_PSEUDO_LABELS:
-        convert_pseudo_labels_to_labels(cfg_autolabel)
+    if FLAG_COMPUTE_EVALUATION_METRICS:
+        if cfg_autolabel.PIPELINE.COMPUTE_EVALUATION_METRICS:
+            #cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=False)
+            evaluation_metrics(cfg_autolabel, path_manager)
 
-    FLAG_BACKUP_OG_TRAIN = False
+    if FLAG_CONVERT_PSEUDO_LABELS:
+        convert_pseudo_labels_to_labels(cfg_autolabel, path_manager)
+
     if FLAG_BACKUP_OG_TRAIN:
         backup_original_training_data(path_manager)
 
-    FLAG_UPDATE_TRAINSET = False
     if FLAG_UPDATE_TRAINSET:
-        update_trainset(path_manager, include_og_train_data =True)
+        update_trainset(path_manager, include_og_train_data =False)
 
-    FLAG_CREATE_AUTOLABEL_INFOS = False
     if FLAG_CREATE_AUTOLABEL_INFOS:
-        create_autolabel_training_infos(path_manager)
+        cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True)
+        create_autolabel_training_infos(path_manager, cfg_autolabel)
 
-    FLAG_TRAIN = True
     if FLAG_TRAIN:
         for model in cfg_autolabel.DATA.PROJECT.MODELS:
             print("Training model: ", model)
-
             cfg_train_model_update(path_manager, model, print_cfg=False)
             model_training(working_path, path_manager, model)
+    return
 
 
 

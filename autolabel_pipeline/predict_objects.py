@@ -141,8 +141,7 @@ if __name__ == '__main__':
 
     # Write data to /autolabel_pipeline/../predictions
     #output_dir = cfg.ROOT_DIR / 'autolabel_data' / 'autolabel' / 'predictions' / cfg.TAG
-    output_dir = os.path.join(cfg.ROOT_DIR, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA, "predictions", cfg.TAG)
-
+    output_dir = Path(os.path.join(cfg.ROOT_DIR, cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA, "predictions", cfg.TAG))
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.eval_all:
@@ -150,7 +149,7 @@ if __name__ == '__main__':
         epoch_id = num_list[-1] if num_list.__len__() > 0 else 'no_number'
         #predict_output_dir = output_dir / ('epoch_%s' % epoch_id)
         predict_output_dir = output_dir
-        print("Output directory for predictions: ", predict_output_dir)
+        print("Output directory: ", predict_output_dir)
 
     else:
         predict_output_dir = output_dir / 'eval_all_default'
@@ -172,6 +171,7 @@ if __name__ == '__main__':
 
 
     ckpt_dir = args.ckpt_dir if args.ckpt_dir is not None else output_dir / 'ckpt'
+    print("Model directory: ", ckpt_dir)
 
     test_set, test_loader, sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,

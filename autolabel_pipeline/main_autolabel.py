@@ -141,13 +141,13 @@ def vote_pseudo_labels(cfg, path_manager, frame_set, batch_size_voting):
     if cfg.PIPELINE.VOTING_SCHEME == 'MAJORITY':
         if not os.path.exists(path_manager.get_path("path_pseudo_labels_majority")):
             os.makedirs(path_manager.get_path("path_pseudo_labels_majority"))
-        if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+        if cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
             path_metrics_pseudo_label = os.path.join(path_manager.get_path("path_pseudo_labels_majority"),"metrics_majority")
 
     elif cfg.PIPELINE.VOTING_SCHEME == 'NMS':
         if not os.path.exists(path_manager.get_path("path_pseudo_labels_nms")):
             os.makedirs(path_manager.get_path("path_pseudo_labels_nms"))
-        if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+        if cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
             path_metrics_pseudo_label = os.path.join(path_manager.get_path("path_pseudo_labels_nms"),"metrics_nms")
 
     else:
@@ -197,11 +197,11 @@ def vote_pseudo_labels(cfg, path_manager, frame_set, batch_size_voting):
                 counter = 0
                 continue
             else:
-                if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+                if cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
                     evaluate_voting_metrics(cfg, path_metrics_pseudo_label, counter_total_frames_processed)
                 exit()
 
-    if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+    if cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
         evaluate_voting_metrics(cfg, path_metrics_pseudo_label, counter_total_frames_processed)
 
 # Function that removes frames to be processed to start at set checkpoint, if set.
@@ -210,14 +210,14 @@ def remove_smaller_numbers(numbers, value):
 
 
 
-# Function that resets the evaluation metrics folder. ONLY IF cfg.PIPELINE.COMPUTE_VOTING_METRICS
+# Function that resets the evaluation metrics folder. ONLY IF cfg.PIPELINE.COMPUTE_EVALUATION_METRICS
 def reset_voting_metrics(path_to_reset):
 
     if os.path.exists(path_to_reset) and os.listdir(path_to_reset):
         shutil.rmtree(path_to_reset, ignore_errors=True)
     return
 
-# Function that evaluates the majority_voting metrics. ONLY IF cfg.PIPELINE.COMPUTE_VOTING_METRICS
+# Function that evaluates the majority_voting metrics. ONLY IF cfg.PIPELINE.COMPUTE_EVALUATION_METRICS
 def evaluate_voting_metrics(cfg, path_to_voting_metrics, counter_total_processed_frames):
     print("___________________________________________________________________________")
 
@@ -289,12 +289,14 @@ def main_pseudo_label(cfg, BATCH_SIZE_VOTING, START_AT_CHECKPOINT, START_FRAME):
 
     vote_pseudo_labels(cfg, path_manager, frame_set, BATCH_SIZE_VOTING)
 
+
+
 if __name__ == "__main__":
 
-    BATCH_SIZE_VOTING = 10000
+    BATCH_SIZE_VOTING = 1
     # If not all frames should be voted on: Set START_AT_CHECKPOINT = True + set START_FRAME as first frame to be voted on.
     START_AT_CHECKPOINT = False
-    START_FRAME = 65
+    START_FRAME = 45
 
     # Load EasyDict to access parameters.
     cfg = load_config()

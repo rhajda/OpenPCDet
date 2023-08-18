@@ -71,7 +71,7 @@ def non_maximum_suppression_voting(cfg, path_manager, df1, df2, df3, frame_ID):
 
             df_pseudo_labels = pd.concat([df_pseudo_labels, df_class], ignore_index=True)
 
-    if not df_pseudo_labels.empty and cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+    if not df_pseudo_labels.empty and cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
         nms_voting_metrics(path_manager, df_pseudo_labels)
 
     df_pseudo_labels = df_pseudo_labels.drop(['metrics_model', 'metrics_weight'], axis=1).reset_index(drop=True)

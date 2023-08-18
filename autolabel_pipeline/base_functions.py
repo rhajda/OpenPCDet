@@ -74,7 +74,6 @@ def autolabel_path_manager(cfg):
     path_manager.add_path("path_pseudo_labels_majority", path_pseudo_labels_majority)
     path_manager.add_path("path_pseudo_labels_nms", path_pseudo_labels_nms)
 
-
     # Paths main_pipeline
     path_manager.add_path("path_project_dataset", os.path.join(working_path, cfg.DATA.PROJECT.DATASET))
     path_manager.add_path("path_project_data", os.path.join(working_path, cfg.DATA.PROJECT.AUTOLABEL_DATA))
@@ -83,4 +82,13 @@ def autolabel_path_manager(cfg):
     path_manager.add_path("path_model_ckpt_dir", os.path.join(working_path, cfg.DATA.PROJECT.AUTOLABEL_DATA, "models"))
     path_manager.add_path("path_output_labels",os.path.join(working_path, cfg.DATA.PROJECT.AUTOLABEL_DATA, "output_labels"))
 
+    # Paths PCDET outputs
+    path_manager.add_path("path_pcdet_pointrcnn",
+                          os.path.join(working_path, "output/home/tools/cfgs/autolabel_models/pointrcnn/default/ckpt"))
+    path_manager.add_path("path_pcdet_pointpillar",
+                          os.path.join(working_path, "output/home/tools/cfgs/autolabel_models/pointpillar/default/ckpt"))
+    path_manager.add_path("path_pcdet_second",
+                          os.path.join(working_path, "output/home/tools/cfgs/autolabel_models/second/default/ckpt"))
+
     return path_manager
+

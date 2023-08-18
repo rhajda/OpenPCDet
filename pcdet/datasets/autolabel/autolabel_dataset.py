@@ -564,9 +564,9 @@ def create_autolabel_infos(dataset_cfg, class_names, data_path, save_path, worke
     #     pickle.dump(kitti_infos_test, f)
     # print('Kitti info test file is saved to %s' % test_filename)
 
-    print('---------------Start create groundtruth database for data augmentation---------------')
-    dataset.set_split(train_split)
-    dataset.create_groundtruth_database(train_filename, split=train_split)
+    #print('---------------Start create groundtruth database for data augmentation---------------')
+    #dataset.set_split(train_split)
+    #dataset.create_groundtruth_database(train_filename, split=train_split)
 
     print('---------------Data preparation Done---------------')
 

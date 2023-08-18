@@ -654,7 +654,7 @@ def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
 
         if not df_pseudo_labels.empty:
 
-            if cfg.PIPELINE.COMPUTE_VOTING_METRICS:
+            if cfg.PIPELINE.COMPUTE_EVALUATION_METRICS:
                 majority_voting_metrics(path_manager, df_pseudo_labels)
 
             df_pseudo_labels = df_pseudo_labels.drop(['element', 'metrics_model', 'metrics_weight'], axis=1).reset_index(drop=True)
