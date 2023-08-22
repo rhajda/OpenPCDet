@@ -470,6 +470,7 @@ def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
         return df_single_pseudo_label
 
 
+
     # Vote a representative from single bbox in group.
     def flow_manager_single_element(cfg, mask, df_group):
 
@@ -556,9 +557,25 @@ def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
             print("TEMP QUEUE. ")
 
         df_representatives = pd.DataFrame()
+
+        # check for infinite loops -- highly uncertain pseudo-labels
+        previous_temp_group = None
+        loop_counter = 0
+
         while temp_bbox_group:
             temp_mask = []
             current_temp_group = temp_bbox_group.pop(0)
+
+            # Detect infinite loops --> highly uncertain pseudo-labels
+            if current_temp_group == previous_temp_group:
+                loop_counter += 1
+                if loop_counter >= 5:
+                    FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL[0] = True
+                    break
+            else:
+                loop_counter = 0
+                previous_temp_group = current_temp_group
+
             df_temp_group = group_to_df_group(df_all, current_temp_group)
 
             if cfg.PIPELINE.PRINT_INFORMATION or DEBUG_MODE:
@@ -626,7 +643,6 @@ def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
 
 
 
-    #
     # START MAJORITY VOTING
     # Define a flag that labels highly uncertain pseudo-labels to be saved separately.
     FLAG_HIGHLY_UNCERTAIN_PSEUDO_LABEL = [False]
