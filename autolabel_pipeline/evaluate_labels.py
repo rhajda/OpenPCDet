@@ -676,7 +676,7 @@ def compute_relative_error(matches, current_index ,gt_annos, dt_annos, overlaps)
             [dt_loc_x, dt_loc_y, dt_loc_z, dt_dim_len, dt_dim_wi, dt_dim_ht, dt_rot]
 
 # Function generates plots for mean relative error.
-def generate_evaluation_results(cfg, result, FN_counts, empty_frame_list, eval_dict):
+def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_frame_list, eval_dict):
 
     print("-> generate_evalutation_results")
 
@@ -829,7 +829,7 @@ def generate_evaluation_results(cfg, result, FN_counts, empty_frame_list, eval_d
 
 
 
-def main_evaluate_labels(cfg, folder_1, folder_2):
+def main_evaluate_labels(cfg, path_manager, folder_1, folder_2):
 
     frame_IDs = common_set_between_datasets(cfg, [folder_1, folder_2], False)  # important: False when handling GTs
 
@@ -838,7 +838,7 @@ def main_evaluate_labels(cfg, folder_1, folder_2):
                                                                                                          folder_1,
                                                                                                          folder_2)
 
-    generate_evaluation_results(cfg, result, FN_counts, empty_frame_list, my_eval_dict)
+    generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_frame_list, my_eval_dict)
 
     return ret_dict, mAP3d_R40, my_eval_dict
 
@@ -862,6 +862,6 @@ if __name__ == "__main__":
     for folder_2 in list_to_evaluate:
         print("folder_1: ", folder_1)
         print("folder_2:", folder_2)
-        ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, folder_1, folder_2)
+        ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, path_manager, folder_1, folder_2)
 
 

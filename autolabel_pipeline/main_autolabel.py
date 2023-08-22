@@ -295,8 +295,8 @@ if __name__ == "__main__":
 
     BATCH_SIZE_VOTING = 1
     # If not all frames should be voted on: Set START_AT_CHECKPOINT = True + set START_FRAME as first frame to be voted on.
-    START_AT_CHECKPOINT = False
-    START_FRAME = 45
+    START_AT_CHECKPOINT = True
+    START_FRAME = 5994
 
     # Load EasyDict to access parameters.
     cfg = load_config()

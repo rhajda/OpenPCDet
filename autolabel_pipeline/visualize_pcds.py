@@ -386,7 +386,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
 def trigger_visualization(cfg, my_pcd, bbox_source):
 
     # Add PathManager for easy access to paths.
-    path_manager = autolabel_path_manager(cfg)
+    path_manager = path_manager(cfg)
 
     pcds_common = load_common_pcds(path_manager, bbox_source)
 
