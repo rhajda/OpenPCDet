@@ -130,11 +130,15 @@ def plot_results():
         plt.legend(loc='upper right', bbox_to_anchor=(1.25, 1.0), labels=[f'{training_dataset}' for training_dataset in df_transposed.columns], title="Training Dataset")
 
         # Insert horizontal grid lines at every 10th value on the y-axis
-        plt.grid(axis='y', linestyle='--', which='major', color='gray', linewidth=0.5)
         plt.yticks(np.arange(0, 101, 10))
+        plt.grid(axis='y', linestyle='--', which='major', color='gray', linewidth=0.5)
+
+        # Add minor horizontal grid lines without labels every 1 value
+        plt.minorticks_on()
+        plt.grid(axis='y', linestyle=':', which='minor', color='gray', linewidth=0.5, alpha=0.4)
 
         # Set y-axis limit from 0 to 100
-        plt.ylim(10, 20)
+        plt.ylim(0, 100)
 
         plt.tight_layout()  # Ensure tight layout to prevent overlapping
 
@@ -154,7 +158,7 @@ if __name__ == "__main__":
     evaluation_ranges = ["0_100", "0_33", "33_66", "66_100"]
 
     # Define the list of evaluation datasets
-    evaluation_datasets = ["real"]
+    evaluation_datasets = ["real", "sim"]
 
     # Select the network (pointpillar or pointrcnn)
     network = "pointrcnn"
