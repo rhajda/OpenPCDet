@@ -368,6 +368,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
     vis.add_geometry(pcd)
     for box in boxes_3d:
         vis.add_geometry(box)
+
     for line_set in line_sets:
         vis.add_geometry(line_set)
 
@@ -386,7 +387,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
 def trigger_visualization(cfg, my_pcd, bbox_source):
 
     # Add PathManager for easy access to paths.
-    path_manager = path_manager(cfg)
+    path_manager = autolabel_path_manager(cfg)
 
     pcds_common = load_common_pcds(path_manager, bbox_source)
 
