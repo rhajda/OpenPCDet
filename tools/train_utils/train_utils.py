@@ -156,7 +156,7 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
                 )
 
             # Evaluate epoch
-            if cur_epoch == 0 or cur_epoch > 70:
+            if cur_epoch == 0 or cur_epoch > total_epochs - 2:
                 model.eval()
                 model.eval_mode = True
                 for module in model.module_list:
