@@ -12,7 +12,7 @@ RUN git config --global --add safe.directory /home
 RUN python setup.py develop
 
 RUN pip install -U numpy
-RUN chmod +x /home/tools/eval_loop.sh
+RUN chmod +x /home/tools/eval_loop.sh && chmod +x /home/tools/train_loop.sh
 
 ENV PYTHONPATH=/home
 ENV XAUTHORITY=/home/.Xauthority
