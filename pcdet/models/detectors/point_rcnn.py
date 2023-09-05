@@ -20,7 +20,7 @@ class PointRCNN(Detector3DTemplate):
             batch_dict = cur_module(batch_dict)
             if idx == 0:
                 feat = batch_dict["point_features"].cpu().detach().numpy()
-                feat = np.amax(feat, 0)
+                feat = np.amax(np.stack(np.split(feat, batch_dict["batch_size"])),1)
 
         for key in batch_dict.keys():
             if isinstance(batch_dict[key], torch.Tensor) and self.tb_log is not None:
