@@ -246,6 +246,18 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
             gt_boxes_reformatted[:, 5] = gt_boxes[:, 7]  # dim_height
             gt_boxes_reformatted[:, 6] = gt_boxes[:, 13]  # rot_y
 
+            # 10 --> x kitti
+            # 11 --> y kitti
+            # 12 --> z kitti
+            #gt_boxes_reformatted[:, 0] = gt_boxes[:, 10]  # loc_x
+            #gt_boxes_reformatted[:, 1] = gt_boxes[:, 12]  # loc_y
+            #gt_boxes_reformatted[:, 2] = gt_boxes[:, 11]  # loc_z
+            #gt_boxes_reformatted[:, 3] = gt_boxes[:, 9]  # dim_length
+            #gt_boxes_reformatted[:, 4] = gt_boxes[:, 8]  # dim_width
+            #gt_boxes_reformatted[:, 5] = gt_boxes[:, 7]  # dim_height
+            #gt_boxes_reformatted[:, 6] = gt_boxes[:, 13]  # rot_y
+
+
             for box_idx, box in enumerate(gt_boxes_reformatted):
                 # box: X, Y, Z, L, W, H, Rot_Y
                 ret = translate_boxes_to_open3d_instance(box, gt='groundtruths')

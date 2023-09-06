@@ -34,17 +34,7 @@ voting schemes:
 
 """
 
-# See later: Function new project.
-#def new_project():
-    # check if a new project is intended to be started.
-#    if not os.path.exists(os.path.join(working_path,cfg.DATA.PROJECT.AUTOLABEL_DATA)):
- #       manual_continue = input("Do you intend to create a new project? "
-#                                "(A new directory will be created at cfg.DATA.PROJECT.AUTOLABEL_DATA. Please check.) y/ n ? ")
-#        if manual_continue != "y":
-#            exit()
-#        else:
-#            os.mkdir(os.path.join(working_path,cfg.DATA.PROJECT.AUTOLABEL_DATA))
-#    return
+
 
 # Function that moves the model files from models (autolabel_data) to past_iterations folder.
 def prepare_autolabel_data_models_folder(cfg_autolabel, path_manager):
@@ -135,6 +125,7 @@ def prepare_autolabel_data_models_folder(cfg_autolabel, path_manager):
         exit()
     return
 
+# Function that resets folders necessary for pseudo-labeling.
 def reset_mode2_folders(cfg_autolabel, path_manager, models):
     print("-> Resetting folders utilized within mode2.")
 
@@ -190,38 +181,6 @@ def reset_mode2_folders(cfg_autolabel, path_manager, models):
 
 
 # MODE 1 sub-functions
-# Function that updates the config file of the detector model. (NUM_EPOCHS; EVAL_RATE; EVAL_MIN_EPOCH).
-def cfg_train_model_update(path_manager, model, print_cfg):
-
-    cfg_file_model_path = os.path.join(path_manager.get_path("path_cfg_models"), (model + ".yaml"))
-
-    with open(cfg_file_model_path, 'r') as cfg_file:
-        cfg_data = yaml.safe_load(cfg_file)
-    # Rate at which evaluation is triggered. Every X epochs.
-    cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 4
-    # Minimum number of training epochs before evaluating.
-    cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 54
-
-    # Model specific parameters, adapted to autolabel needs.
-    if model == "pointrcnn":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
-        cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6
-
-    if model == "pointpillar":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
-        cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10
-
-    if model == "second":
-        cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 80 #90
-        cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
-
-    with open(cfg_file_model_path, 'w') as updated_cfg_file:
-        yaml.dump(cfg_data, updated_cfg_file)
-
-    if print_cfg:
-        with open(cfg_file_model_path, 'r') as cfg_file:
-            cfg_data = yaml.safe_load(cfg_file)
-            print(yaml.dump(cfg_data))
 
 # Function that triggers openPCDet training.
 def model_training(working_path, path_manager, model):
@@ -234,40 +193,11 @@ def model_training(working_path, path_manager, model):
     os.chdir(train_path)
     print("Working directory for training: ", os.getcwd())
 
-    command = f"python {train_script_path} --cfg_file {cfg_file_model_path}"
+    command = f"python {train_script_path} --cfg_file {cfg_file_model_path} "
     try:
         subprocess.check_call(command, shell=True)
     except subprocess.CalledProcessError as e:
         print(f"Error while running the training process: {e}")
-
-# Function that copies a model ckpt to a specified folder.
-def copy_pth_file(model_file, origin_path, goal_path):
-    source_file_path = os.path.join(origin_path, model_file)
-    destination_file_path = os.path.join(goal_path, model_file)
-
-    if os.path.isfile(source_file_path):
-        if os.path.exists(destination_file_path) and len(os.listdir(goal_path)) > 0:
-            user_input = input(f"Destination folder {goal_path} is not empty. Do you want to empty it? (y/n): ").lower()
-            if user_input == 'y':
-                try:
-                    for file in os.listdir(goal_path):
-                        file_path = os.path.join(goal_path, file)
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                    print(f"Destination folder {goal_path} emptied.")
-                except Exception as e:
-                    print(f"Error occurred while emptying the destination folder: {e}")
-            else:
-                print("Aborted. Destination folder is not empty.")
-                return
-
-        try:
-            shutil.copy(source_file_path, destination_file_path)
-            print(f"Successfully copied {model_file} from {origin_path} to {goal_path}.")
-        except Exception as e:
-            print(f"Error occurred while copying {model_file}: {e}")
-    else:
-        print(f"Source file {model_file} does not exist in {origin_path}.")
 
 
 
@@ -530,12 +460,17 @@ def update_trainset(path_manager, include_og_train_data):
 
     # Write to .txt file
     path_imagesets_train = os.path.join(path_manager.get_path("path_project_dataset"), "ImageSets_KITTI_full/train.txt")
+    # Remove and recreate empty train.txt file
+    if os.path.exists(path_imagesets_train):
+        os.remove(path_imagesets_train)
+    open(path_imagesets_train, 'w').close()
+
+    # fill empty train.txt file
     list_train_sorted = sorted(list_train, key=lambda x: int(x))
     with open(path_imagesets_train, 'w') as file:
         for item in list_train_sorted:
             file.write(item + '\n')
-    if cfg_autolabel.PIPELINE.PRINT_INFORMATION:
-        print("-> train.txt updated.")
+    print("-> train.txt updated.")
 
     # Reset label files to original kitti-og files.
     path_label_2_folder = os.path.join(path_manager.get_path("path_project_dataset"), "training/label_2")
@@ -552,8 +487,7 @@ def update_trainset(path_manager, include_og_train_data):
         path_label_2_file = os.path.join(path_label_2_folder, filename)
         path_output_labels_file = os.path.join(path_output_labels, filename)
         shutil.copy(path_output_labels_file, path_label_2_file)
-    if cfg_autolabel.PIPELINE.PRINT_INFORMATION:
-        print("-> /label_2 file updated.")
+    print("-> /label_2 file updated.")
 
     return
 
@@ -591,38 +525,93 @@ def create_autolabel_training_infos(path_manager, cfg_autolabel):
 
 
 
+# CFG UPDATES
+# Function that updates the config file of the detector model. (NUM_EPOCHS; EVAL_RATE; EVAL_MIN_EPOCH).
+def cfg_train_model_update(path_manager, model, print_cfg):
+
+    cfg_file_model_path = os.path.join(path_manager.get_path("path_cfg_models"), (model + ".yaml"))
+
+    with open(cfg_file_model_path, 'r') as cfg_file:
+        cfg_data = yaml.safe_load(cfg_file)
+
+    FLAG_RETRAIN = False
+    # IF COMPLETE RETRAIN
+    if FLAG_RETRAIN:
+        # Rate at which evaluation is triggered. Every X epochs.
+        cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 4
+        # Minimum number of training epochs before evaluating.
+        cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 54
+
+        # Model specific parameters, adapted to autolabel needs.
+        if model == "pointrcnn":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6
+            cfg_data['OPTIMIZATION']['LR'] = 0.01  # 0.01
+
+        if model == "pointpillar":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10
+
+        if model == "second":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 80 #90
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
+
+    # IF PARTIAL RETRAIN
+    else:
+        # Rate at which evaluation is triggered. Every X epochs.
+        cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 3
+        # Minimum number of training epochs before evaluating.
+        cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 60
+
+        # Model specific parameters, adapted to autolabel needs.
+        if model == "pointrcnn":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 122 # +20 # +30 epochs for testing
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6
+            cfg_data['OPTIMIZATION']['LR'] = 0.002   # 0.001      # 0.002        # 0.01
+
+        if model == "pointpillar":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 119 # ++20 # +30 epochs for testing
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 8
+            cfg_data['OPTIMIZATION']['LR'] = 0.0006     #0.0006  # 0.003
+
+        if model == "second":
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 110  # +20 # +30 epochs for testing
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
+            cfg_data['OPTIMIZATION']['LR'] = 0.0006     #0.0006  # 0.003
+
+
+    with open(cfg_file_model_path, 'w') as updated_cfg_file:
+        yaml.dump(cfg_data, updated_cfg_file)
+
+    if print_cfg:
+        with open(cfg_file_model_path, 'r') as cfg_file:
+            cfg_data = yaml.safe_load(cfg_file)
+            print(yaml.dump(cfg_data))
+
+
+
+# 2 modes: Initial train and loop. MODE_INITIAL_TRAIN = True --> MODE 1
 # MODE 1
 def mode_1():
-    model_yaml = "pointrcnn.yaml"
+    FLAG_CREATE_AUTOLABEL_INFOS = False
+    FLAG_TRAIN = True
 
-    print("Processing model: ", model_yaml)
-
-    # To be moved to yaml.
-    model_file_pointrcnn = "checkpoint_epoch_75.pth"
-    origin_path_pointrcnn = "/home/output/home/tools/cfgs/autolabel_models/pointrcnn/default/ckpt"
-    goal_path_pointrcnn = "/home/autolabel_data/autolabel/models/pointrcnn"
-    model_file_pointpillar = "checkpoint_epoch_75.pth"
-    origin_path_pointpillar = "/home/output/home/tools/cfgs/autolabel_models/pointpillar/default/ckpt"
-    goal_path_pointpillar = "/home/autolabel_data/autolabel/models/pointpillar"
-    model_file_second = "checkpoint_epoch_72.pth"
-    origin_path_second = "/home/output/home/tools/cfgs/autolabel_models/second/default/ckpt"
-    goal_path_second = "/home/autolabel_data/autolabel/models/second"
-    FLAG_TRAIN = False
-    FLAG_COPY_MODELS = False
-    print("--> Semi-supervised pseudo-labeling pipeline. Initial training.")
+    if FLAG_CREATE_AUTOLABEL_INFOS:
+        # cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True,  eval_on_val=False)
+        create_autolabel_training_infos(path_manager, cfg_autolabel)
 
     if FLAG_TRAIN:
-        cfg_train_model_update(path_cfg_model, print_cfg=False)
-        model_training(working_path, path_cfg_model)
+        for model in cfg_autolabel.DATA.PROJECT.MODELS:
+            print("Training model: ", model)
+            cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=False, eval_on_val=False)
+            cfg_train_model_update(path_manager, model, print_cfg=False)
+            model_training(working_path, path_manager, model)
 
-    if FLAG_COPY_MODELS:
-        copy_pth_file(model_file_pointrcnn, origin_path_pointrcnn, goal_path_pointrcnn)
-        copy_pth_file(model_file_pointpillar, origin_path_pointpillar, goal_path_pointpillar)
-        copy_pth_file(model_file_second, origin_path_second, goal_path_second)
     return
 
 # MODE 2
-def mode_2(cfg_autolabel, path_manager, models, EVAL_ON_KITTI_VAL):
+def mode_2(cfg_autolabel, path_manager, models, opt):
+
     # Set up pipeline for evaluation on kitti eval dataset.
     def mode_2_eval_on_val(cfg_autolabel, path_manager, models):
 
@@ -661,15 +650,15 @@ def mode_2(cfg_autolabel, path_manager, models, EVAL_ON_KITTI_VAL):
     # Set up pipeline for training iteration
     def mode_2_pseudo_label_iteration(cfg_autolabel, path_manager, models):
 
-        FLAG_RESET_PSEUDO_LABEL_FOLDERS = True
-        FLAG_PREDICT_OBJECTS = True
-        FLAG_VOTE_PSEUDO_LABELS = True
+        FLAG_RESET_PSEUDO_LABEL_FOLDERS = False
+        FLAG_PREDICT_OBJECTS = False
+        FLAG_VOTE_PSEUDO_LABELS = False
         FLAG_COMPUTE_EVALUATION_METRICS = False
         FLAG_CONVERT_PSEUDO_LABELS = False
         FLAG_BACKUP_OG_TRAIN = False
         FLAG_UPDATE_TRAINSET = False
         FLAG_CREATE_AUTOLABEL_INFOS = False
-        FLAG_TRAIN = False
+        FLAG_TRAIN = True
 
         # Prerequisite: /home/autolabel_data/autolabel/models contains the selected models for this iteration.
         print("--> Semi-supervised pseudo-labeling pipeline. Mode: Loop.")
@@ -713,28 +702,36 @@ def mode_2(cfg_autolabel, path_manager, models, EVAL_ON_KITTI_VAL):
                 cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=False,  eval_on_val=False)
                 cfg_train_model_update(path_manager, model, print_cfg=False)
                 model_training(working_path, path_manager, model)
+
         return
 
-    ######################
+
     # MAIN mode_2
-    FLAG_PREPARE_AUTOLABEL_DATA_MODELS_FOLDER = False
-    if FLAG_PREPARE_AUTOLABEL_DATA_MODELS_FOLDER:
+
+    if opt['FLAG_PREPARE_AUTOLABEL_DATA_MODELS_FOLDER']:
         prepare_autolabel_data_models_folder(cfg_autolabel, path_manager)
 
     # If EVAL_ON_KITTI_VAL == True: Compute performance metrics on kitti val.
-    if EVAL_ON_KITTI_VAL:
+    if opt['EVAL_ON_KITTI_VAL']:
         mode_2_eval_on_val(cfg_autolabel, path_manager, models)
 
-    if not EVAL_ON_KITTI_VAL:
+    if not opt['EVAL_ON_KITTI_VAL']:
         mode_2_pseudo_label_iteration(cfg_autolabel, path_manager, models)
 
     return
 
 
 
-# 2 modes: Initial train and loop. MODE_INITIAL_TRAIN = True --> MODE 1
-MODE_INITIAL_TRAIN = False
-EVAL_ON_KITTI_VAL = True
+
+
+opt = { # Select the mode MODE_INITIAL_TRAIN/ TRAIN_ITERATION
+        'MODE_INITIAL_TRAIN': False,
+        # Select if eval on kitti validation set or pseudo-labels
+        'EVAL_ON_KITTI_VAL': True,
+        # Moves model ckpts to /models and /past_iterations. !!only use once after each training iteration!!
+        'FLAG_PREPARE_AUTOLABEL_DATA_MODELS_FOLDER': False
+      }
+
 if __name__ == "__main__":
 
     # Load EasyDict to access autolabel parameters.
@@ -746,9 +743,9 @@ if __name__ == "__main__":
         print(f"Initial working path: {working_path}")
 
     # Perform initial training loop on a predefined dataset.
-    if MODE_INITIAL_TRAIN:
+    if opt['MODE_INITIAL_TRAIN']:
         mode_1()
 
     # From selected model checkpoints, perform one semi-supervised auto-labeling loop.
-    if not MODE_INITIAL_TRAIN:
-        mode_2(cfg_autolabel, path_manager, cfg_autolabel.DATA.PROJECT.MODELS, EVAL_ON_KITTI_VAL)
+    if not opt['MODE_INITIAL_TRAIN']:
+        mode_2(cfg_autolabel, path_manager, cfg_autolabel.DATA.PROJECT.MODELS, opt)

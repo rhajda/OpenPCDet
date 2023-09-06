@@ -779,20 +779,36 @@ def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_fram
             os.makedirs(path_project_evaluation, exist_ok=True)
 
             # Define data and plot details
-            data_list = [[abs_error_loc_x, abs_error_loc_y, abs_error_loc_z, abs_error_dim_len, abs_error_dim_wi,
-                          abs_error_dim_ht],
-                         [abs_error_rot_front, abs_error_rot_back],
-                         [overlap]]
-            title_list = [f'Bounding boxes {label} absolute error',
-                          f'Bounding boxes {label} absolute rotation error',
-                          f'Overlap bounding boxes {label} to ground truth']
-            names_list = [['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht'],
-                          [f'rot_z (support: {len(abs_error_rot_front)})',
-                           f'rot_z (reversed, support: {len(abs_error_rot_back)})'],
-                          ['overlap bev']]
-            xlabel_list = ['Absolute error in meter', 'Absolute error in radians', 'Overlap in %']
+            if len(abs_error_rot_back) != 0:
+                data_list = [[abs_error_loc_x, abs_error_loc_y, abs_error_loc_z, abs_error_dim_len, abs_error_dim_wi,
+                              abs_error_dim_ht],
+                             [abs_error_rot_front, abs_error_rot_back],
+                             [overlap]]
+                title_list = [f'Bounding boxes {label} absolute error',
+                              f'Bounding boxes {label} absolute rotation error',
+                              f'Overlap bounding boxes {label} to ground truth']
+                names_list = [['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht'],
+                              [f'rot_z (support: {len(abs_error_rot_front)})',
+                               f'rot_z (reversed, support: {len(abs_error_rot_back)})'],
+                              ['overlap bev']]
+                xlabel_list = ['Absolute error in meter', 'Absolute error in radians', 'Overlap in %']
 
-            my_figsize = [(10, 6), (10,2.5), (10,2)]
+                my_figsize = [(10, 6), (10,2.5), (10,2)]
+
+            else:
+                data_list = [[abs_error_loc_x, abs_error_loc_y, abs_error_loc_z, abs_error_dim_len, abs_error_dim_wi,
+                              abs_error_dim_ht],
+                             [abs_error_rot_front],
+                             [overlap]]
+                title_list = [f'Bounding boxes {label} absolute error',
+                              f'Bounding boxes {label} absolute rotation error',
+                              f'Overlap bounding boxes {label} to ground truth']
+                names_list = [['loc_x', 'loc_y', 'loc_z', 'dim_len', 'dim_wi', 'dim_ht'],
+                              [f'rot_z (support: {len(abs_error_rot_front)})'],
+                              ['overlap bev']]
+                xlabel_list = ['Absolute error in meter', 'Absolute error in radians', 'Overlap in %']
+
+                my_figsize = [(10, 6), (10, 2), (10, 2)]
 
             for i, (data, names, xlabel, title) in enumerate(zip(data_list, names_list, xlabel_list, title_list)):
                 fig, ax = plt.subplots(figsize=my_figsize[i])
