@@ -51,6 +51,10 @@ class Waymo2KITTI(object):
         self.selected_waymo_locations = None
         self.save_track_id = False
 
+        self.convert_interval = 10
+        print( f"self.convert_interval set to a value of {self.convert_interval}. "
+               f"Changeable in Waymo2KITTI if necessary.")
+
         # turn on eager execution for older tensorflow versions
         if int(tf.__version__.split('.')[0]) < 2:
             tf.enable_eager_execution()
@@ -109,21 +113,25 @@ class Waymo2KITTI(object):
 
         for frame_idx, data in enumerate(dataset):
 
-            frame = dataset_pb2.Frame()
-            frame.ParseFromString(bytearray(data.numpy()))
-            if (self.selected_waymo_locations is not None
-                    and frame.context.stats.location
-                    not in self.selected_waymo_locations):
+            if (frame_idx % self.convert_interval == 0):
+
+                frame = dataset_pb2.Frame()
+                frame.ParseFromString(bytearray(data.numpy()))
+                if (self.selected_waymo_locations is not None
+                        and frame.context.stats.location
+                        not in self.selected_waymo_locations):
+                    continue
+
+                #self.save_image(frame, file_idx, frame_idx)
+                self.save_calib(frame, file_idx, frame_idx)
+                self.save_lidar(frame, file_idx, frame_idx)
+                #self.save_pose(frame, file_idx, frame_idx)
+
+                if not self.test_mode:
+                    self.save_label(frame, file_idx, frame_idx)
+            else:
                 continue
 
-            #self.save_image(frame, file_idx, frame_idx)
-            self.save_calib(frame, file_idx, frame_idx)
-            self.save_lidar(frame, file_idx, frame_idx)
-            #self.save_pose(frame, file_idx, frame_idx)
-
-            if not self.test_mode:
-                self.save_label(frame, file_idx, frame_idx)
-            exit()
 
     def __len__(self):
         """Length of the filename list."""
@@ -528,7 +536,7 @@ def waymo_data_prep(root_path, info_prefix, version, out_dir, workers, max_sweep
     """
 
     # splits = ['training', 'validation', 'testing']
-    splits = ["training"]
+    splits = ["training_0"]
     for i, split in enumerate(splits):
         load_dir = osp.join(root_path, split)
         if split == 'validation':
@@ -543,21 +551,23 @@ def waymo_data_prep(root_path, info_prefix, version, out_dir, workers, max_sweep
                                 test_mode=(split == 'test'))
         converter.convert()
 
+def parse_config():
+    parser = argparse.ArgumentParser(description='Data converter arg parser')
+    parser.add_argument('dataset', metavar='kitti', help='name of the dataset')
+    parser.add_argument('--root-path', type=str, default='./data/kitti', help='specify the root path of dataset')
+    parser.add_argument('--version', type=str, default='v1.0', required=False,
+                        help='specify the dataset version, no need for kitti')
+    parser.add_argument('--max-sweeps', type=int, default=10, required=False,
+                        help='specify sweeps of lidar per example')
+    parser.add_argument('--out-dir', type=str, default='./data/kitti', required='False', help='name of info pkl')
+    parser.add_argument('--extra-tag', type=str, default='kitti')
+    parser.add_argument('--workers', type=int, default=4, help='number of threads to be used')
+    args = parser.parse_args()
+    return args
 
-
-
-
-parser = argparse.ArgumentParser(description='Data converter arg parser')
-parser.add_argument('dataset', metavar='kitti', help='name of the dataset')
-parser.add_argument('--root-path', type=str, default='./data/kitti', help='specify the root path of dataset')
-parser.add_argument('--version', type=str, default='v1.0', required=False, help='specify the dataset version, no need for kitti')
-parser.add_argument('--max-sweeps',  type=int, default=10, required=False, help='specify sweeps of lidar per example')
-parser.add_argument('--out-dir', type=str, default='./data/kitti', required='False', help='name of info pkl')
-parser.add_argument('--extra-tag', type=str, default='kitti')
-parser.add_argument('--workers', type=int, default=4, help='number of threads to be used')
-args = parser.parse_args()
 
 if __name__ == "__main__":
+    args = parse_config()
 
     if args.dataset == 'waymo':
         waymo_data_prep(root_path=args.root_path,

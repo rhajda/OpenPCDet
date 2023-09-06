@@ -4,7 +4,7 @@ FROM python:3.7
 
 # Set the working directory to /home
 WORKDIR /home
-
+COPY . .
 
 # Install TensorFlow 2.1.0, upgrade pip, and install required packages
 RUN pip install tensorflow==2.1.0 \
