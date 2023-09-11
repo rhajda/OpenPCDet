@@ -11,7 +11,7 @@ from sklearn.manifold import TSNE
 
 def extract_data(runs):
     # Create a directory to store CSV files
-    output_dir = "output_csv"
+    output_dir = f"{network}_output_csv"
     os.makedirs(output_dir, exist_ok=True)
 
     # Initialize a dict to store max epochs
@@ -50,7 +50,7 @@ def extract_data(runs):
                                 for row in csv_reader:
                                     epoch, values, _ = row
                                     epoch = int(epoch)
-                                    value = float(values.split(",")[3])  # Extract the desired value
+                                    value = float(values.split(",")[3])  # Extract the desired value: 1:AP50, 3:AP70
 
                                     # Append the value and epoch to the lists
                                     values_list.append(value)
@@ -117,7 +117,7 @@ def extract_glob_feats(runs):
     extracted_glob_feats = {}
 
     # Define the output directory for CSVs
-    output_dir = "output_csv"
+    output_dir = f"{network}_output_csv"
 
     # Iterate over training datasets
     for training_dataset in training_datasets:
@@ -158,6 +158,9 @@ def extract_glob_feats(runs):
                                     with open(pkl_file_path, "rb") as pkl_file:
                                         data = pickle.load(pkl_file)
 
+                                    # remove batch-size dimension
+                                    data = list(np.concatenate(data, axis=0))
+
                                     # Create a key based on dataset, training_dataset, run, and eval_range
                                     key = f"{network}_{training_dataset}_{run}_{eval_range_folder}"
 
@@ -180,14 +183,14 @@ def define_colors():
 
 def plot_results(colors, runs):
     # Create a directory to store figures
-    figs_dir = "output_figs"
+    figs_dir = f"{network}_output_figs"
     os.makedirs(figs_dir, exist_ok=True)
 
     for eval_range in evaluation_ranges:
         # Load data from CSV files for the specified runs
         data_list = []
         for run in runs:
-            data = pd.read_csv(f"output_csv/extracted_data_{eval_range}_{run}.csv", header=None)
+            data = pd.read_csv(f"{network}_output_csv/extracted_data_{eval_range}_{run}.csv", header=None)
             data_list.append(data)
 
         # Concatenate data from multiple runs
@@ -339,13 +342,10 @@ def plot_results(colors, runs):
         # Save the plot as an image (optional)
         plt.savefig(os.path.join(figs_dir, f"plot_boxplot_{eval_range}.png"))
 
-    # Show the plot (optional)
-    plt.show()
-
 
 def plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=30):
     # Create a directory to store figures
-    figs_dir = "output_figs"
+    figs_dir = f"{network}_output_figs"
     os.makedirs(figs_dir, exist_ok=True)
 
     # Iterate over evaluation ranges
@@ -414,21 +414,21 @@ def plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, eval
             # Save the plot as an image (optional)
             plt.savefig(os.path.join(figs_dir, f"plot_tsne_{eval_dataset}_{eval_range}_{perplexity}.png"))
 
-    # Show or save the plot
-    plt.show()  # You can save the plot to a file using plt.savefig() if needed
 
 def main():
-    extract_data(runs)
-
-    extracted_glob_feats = extract_glob_feats(runs)
-
     colors = define_colors()
+
+    extract_data(runs)
 
     # Plot bar charts and box plots
     plot_results(colors, runs)
 
+    extracted_glob_feats = extract_glob_feats(runs)
+
     # Call the function with your extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, and optional perplexity
     plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=3)
+
+    plt.show()
 
     print()
 
