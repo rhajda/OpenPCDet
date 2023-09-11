@@ -23,8 +23,8 @@ def read_file_to_list(file_path):
 
 if __name__ == "__main__":
 
-    train_file_og = "/home/data/autolabel/kitti_og/ImageSets_KITTI_full/train.txt"
-    working_directory = "/home/data/autolabel/kitti_20/ImageSets_KITTI_full/"
+    train_file_og = "/home/data/autolabel_waymo/ImageSets_KITTI_full/train.txt"
+    working_directory = "/home/data/autolabel_waymo/ImageSets_KITTI_full/"
     split_ratio = 0.2
 
 

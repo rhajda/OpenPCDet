@@ -593,11 +593,11 @@ def cfg_train_model_update(path_manager, model, print_cfg):
 # 2 modes: Initial train and loop. MODE_INITIAL_TRAIN = True --> MODE 1
 # MODE 1
 def mode_1():
-    FLAG_CREATE_AUTOLABEL_INFOS = False
-    FLAG_TRAIN = True
+    FLAG_CREATE_AUTOLABEL_INFOS = True
+    FLAG_TRAIN = False
 
     if FLAG_CREATE_AUTOLABEL_INFOS:
-        # cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True,  eval_on_val=False)
+        cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True,  eval_on_val=False)
         create_autolabel_training_infos(path_manager, cfg_autolabel)
 
     if FLAG_TRAIN:
@@ -615,9 +615,9 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
     # Set up pipeline for evaluation on kitti eval dataset.
     def mode_2_eval_on_val(cfg_autolabel, path_manager, models):
 
-        FLAG_RESET_PSEUDO_LABEL_FOLDERS = True
-        FLAG_PREDICT_OBJECTS = True
-        FLAG_VOTE_PSEUDO_LABELS = True
+        FLAG_RESET_PSEUDO_LABEL_FOLDERS = False
+        FLAG_PREDICT_OBJECTS = False
+        FLAG_VOTE_PSEUDO_LABELS = False
         FLAG_COMPUTE_EVALUATION_METRICS = True
 
         print("--> Semi-supervised pseudo-labeling pipeline. Mode: Loop. EVAL ON KITTI VALIDATION SET")
@@ -653,12 +653,12 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
         FLAG_RESET_PSEUDO_LABEL_FOLDERS = False
         FLAG_PREDICT_OBJECTS = False
         FLAG_VOTE_PSEUDO_LABELS = False
-        FLAG_COMPUTE_EVALUATION_METRICS = False
+        FLAG_COMPUTE_EVALUATION_METRICS = True
         FLAG_CONVERT_PSEUDO_LABELS = False
         FLAG_BACKUP_OG_TRAIN = False
         FLAG_UPDATE_TRAINSET = False
         FLAG_CREATE_AUTOLABEL_INFOS = False
-        FLAG_TRAIN = True
+        FLAG_TRAIN = False
 
         # Prerequisite: /home/autolabel_data/autolabel/models contains the selected models for this iteration.
         print("--> Semi-supervised pseudo-labeling pipeline. Mode: Loop.")

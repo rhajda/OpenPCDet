@@ -6,10 +6,9 @@ docker run --rm -it --gpus "device=$gpu" --network=host -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
   -v $HOME/.Xauthority:/home/.Xauthority --hostname $(hostname) \
   -v /home/ubuntu/Loic/openpcdet_autolabel/data/:/home/data \
-  -v /mnt/Autolabelling/waymo_open_dataset:/home/data/waymo_open_dataset \
-  -v /mnt/Autolabelling/converted:/home/data/converted \
+  -v /mnt/Autolabelling/converted_to_kitti_format/waymo_in_kitti_format/training/label_autolabel/:/home/data/autolabel_waymo/training/label_2/ \
+  -v /mnt/Autolabelling/converted_to_kitti_format/waymo_in_kitti_format/training/velodyne/:/home/data/autolabel_waymo/training/velodyne/ \
   -v /home/ubuntu/Loic/openpcdet_autolabel/convert_datasets:/home/convert_datasets \
-  -v /mnt/Autolabelling/nuscenes/:/home/data/nuscenes \
   -v /mnt/Autolabelling/KITTI/training:/home/data/autolabel_og/training \
   -v /mnt/Autolabelling/KITTI/training/velodyne:/home/data/autolabel_retrain/training/velodyne \
   -v /mnt/Autolabelling/KITTI/training/velodyne:/home/data/autolabel_transfer/training/velodyne \

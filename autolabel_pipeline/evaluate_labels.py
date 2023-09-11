@@ -739,7 +739,11 @@ def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_fram
 
 
         # Calculate the percentages
-        percentage_under_pi_half = (len(abs_error_rot_front) / len(abs_error_rot)) * 100
+        if len(abs_error_rot) != 0:
+            percentage_under_pi_half = (len(abs_error_rot_front) / len(abs_error_rot)) * 100
+        else:
+            percentage_under_pi_half = 0
+
         print(f"Heading: {percentage_under_pi_half}% of bboxes head in the right direction ({label}: {len(abs_error_rot)} TPs.)")
 
         #print(f"abs_error_loc_x (m): {abs_error_loc_x}\nabs_error_loc_y (m): {abs_error_loc_y}\n"
@@ -748,12 +752,25 @@ def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_fram
         #      f"abs_error_rotation: {abs_error_rot}")
 
         # Compute mean relative error
-        mean_relative_error_loc_x = np.mean(abs_error_loc_x / np.abs(gt_loc_x))
-        mean_relative_error_loc_y = np.mean(abs_error_loc_y / np.abs(gt_loc_y))
-        mean_relative_error_loc_z = np.mean(abs_error_loc_z / np.abs(gt_loc_z))
-        mean_relative_error_dim_len = np.mean(abs_error_dim_len / np.abs(gt_dim_len))
-        mean_relative_error_dim_wi = np.mean(abs_error_dim_wi / np.abs(gt_dim_wi))
-        mean_relative_error_dim_ht = np.mean(abs_error_dim_ht / np.abs(gt_dim_ht))
+        if len(gt_loc_x) != 0:
+            mean_relative_error_loc_x = np.mean(abs_error_loc_x / np.abs(gt_loc_x))
+        else:mean_relative_error_loc_x = 0
+        if len(gt_loc_y) != 0:
+            mean_relative_error_loc_y = np.mean(abs_error_loc_y / np.abs(gt_loc_y))
+        else:mean_relative_error_loc_y = 0
+        if len(gt_loc_z) != 0:
+            mean_relative_error_loc_z = np.mean(abs_error_loc_z / np.abs(gt_loc_z))
+        else:mean_relative_error_loc_z = 0
+        if len(gt_dim_len) != 0:
+            mean_relative_error_dim_len = np.mean(abs_error_dim_len / np.abs(gt_dim_len))
+        else:mean_relative_error_dim_len = 0
+        if len(gt_dim_wi) != 0:
+            mean_relative_error_dim_wi = np.mean(abs_error_dim_wi / np.abs(gt_dim_wi))
+        else:mean_relative_error_dim_wi = 0
+        if len(gt_dim_ht) != 0:
+            mean_relative_error_dim_ht = np.mean(abs_error_dim_ht / np.abs(gt_dim_ht))
+        else:mean_relative_error_dim_ht = 0
+
         mean_relative_error_rot = np.mean(abs_error_rot / (2 * np.pi))
         mean_overlap = np.mean(overlap)
 
@@ -831,15 +848,18 @@ def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_fram
                 # Print mean, median, and quantiles for the current plot
                 print(f"Statistics for {title}:")
                 for j, name in enumerate(names):
-                    mean = np.mean(data[j])
-                    median = np.median(data[j])
-                    quantiles = np.percentile(data[j], [25, 75])
+                    if len(data[j]) == 0:
+                        print(f"No elements for {name}")
+                    else:
+                        mean = np.mean(data[j])
+                        median = np.median(data[j])
+                        quantiles = np.percentile(data[j], [25, 75])
 
-                    print(f"{name}:")
-                    print(f"  Mean: {mean:.2f}")
-                    print(f"  Median: {median:.2f}")
-                    print(f"  Q1: {quantiles[0]:.2f}")
-                    print(f"  Q3: {quantiles[1]:.2f}")
+                        print(f"{name}:")
+                        print(f"  Mean: {mean:.2f}")
+                        print(f"  Median: {median:.2f}")
+                        print(f"  Q1: {quantiles[0]:.2f}")
+                        print(f"  Q3: {quantiles[1]:.2f}")
 
 
 
@@ -879,5 +899,3 @@ if __name__ == "__main__":
         print("folder_1: ", folder_1)
         print("folder_2:", folder_2)
         ret_dict, mAP3d_R40, my_eval_dict = main_evaluate_labels(cfg, path_manager, folder_1, folder_2)
-
-

@@ -536,7 +536,7 @@ def waymo_data_prep(root_path, info_prefix, version, out_dir, workers, max_sweep
     """
 
     # splits = ['training', 'validation', 'testing']
-    splits = ["training_0"]
+    splits = ["training"]
     for i, split in enumerate(splits):
         load_dir = osp.join(root_path, split)
         if split == 'validation':

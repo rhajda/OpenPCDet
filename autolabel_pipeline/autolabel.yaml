@@ -91,14 +91,21 @@
 
 
 DATA:
-  PATH_POINT_CLOUDS: "/home/data/autolabel_og/training/velodyne"
-  PATH_GROUND_TRUTHS: "/home/data/autolabel_og/training/label_2"
+  # KITTI
+  #PATH_POINT_CLOUDS: "/home/data/autolabel_og/training/velodyne"
+  #PATH_GROUND_TRUTHS: "/home/data/autolabel_og/training/label_2"
+
+  # WAYMO
+  PATH_POINT_CLOUDS: "/home/data/autolabel_waymo/training/velodyne"
+  PATH_GROUND_TRUTHS: "/home/data/autolabel_waymo/original/label_2"
+
   PROJECT:
-    DATASET: "data/autolabel_retrain"
-    AUTOLABEL_DATA: "autolabel_data/autolabel_retrain"
+    DATASET: "data/autolabel_waymo"
+    AUTOLABEL_DATA: "autolabel_data/autolabel_waymo"
     CFG_DATASET: "tools/cfgs/dataset_configs/autolabel_dataset.yaml"
     CFG_MODELS: "tools/cfgs/autolabel_models"
-    MODELS: [ "pointrcnn", "pointpillar", "second" ]
+    MODELS: ["pointrcnn", "pointpillar", "second"]
+
 
 
 PIPELINE:
@@ -134,5 +141,5 @@ PIPELINE:
         CONFIDENCE_PEDESTRIAN: 1
 
 VISUALISATION:
-  BBOXES_TO_LOAD: ['pointrcnn', 'pointpillar', 'second', 'groundtruths']
-  POINT_CLOUD_ID_TO_VISUALIZE: '005994'
+  BBOXES_TO_LOAD: ['groundtruths']
+  POINT_CLOUD_ID_TO_VISUALIZE: '100004'

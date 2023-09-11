@@ -17,7 +17,7 @@ if __name__ == "__main__":
     root_path = os.path.join("/home/data/waymo_open_dataset/")
     out_dir = os.path.join("/home/data/converted_to_kitti_format/")
 
-    waymo_in_kitti_camera_coordinate_folder = os.path.join(out_dir, "waymo_in_kitti_format/training_0")
+    waymo_in_kitti_camera_coordinate_folder = os.path.join(out_dir, "waymo_in_kitti_format/training")
     label_source_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "label_0")
     label_target_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "label_kitti_carla")
     calib_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "calib")
