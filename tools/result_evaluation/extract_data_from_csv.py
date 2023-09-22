@@ -50,7 +50,12 @@ def extract_data(runs):
                                 for row in csv_reader:
                                     epoch, values, _ = row
                                     epoch = int(epoch)
-                                    value = float(values.split(",")[3])  # Extract the desired value: 1:AP50, 3:AP70
+                                    if iou_tresh == 0.5:
+                                        value = float(values.split(",")[1])
+                                    elif iou_tresh == 0.7:
+                                        value = float(values.split(",")[3])
+                                    else:
+                                        raise NotImplementedError(f"IoU Threshold must be 0.5 or 0.7, selected: {iou_tresh}")
 
                                     # Append the value and epoch to the lists
                                     values_list.append(value)
@@ -418,15 +423,13 @@ def plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, eval
 def main():
     colors = define_colors()
 
+    # mAP
     extract_data(runs)
-
-    # Plot bar charts and box plots
     plot_results(colors, runs)
 
-    extracted_glob_feats = extract_glob_feats(runs)
-
-    # Call the function with your extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, and optional perplexity
-    plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=3)
+    # t-SNE
+    #extracted_glob_feats = extract_glob_feats(runs)
+    #plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=3)
 
     plt.show()
 
@@ -435,14 +438,14 @@ def main():
 
 if __name__ == "__main__":
     # Define the list of training dataset names
-    training_datasets = ["real_", "real2sim20_", "sim_noise_", "sim_noise_obj_", "sim2real20_", "sim2real21_", "sim_"]
-    num_real = 2
-    num_sim = 5
+    training_datasets = ["real_", "real2sim20_", "real2sim21_", "real2sim22_", "sim_noise_obj_", "sim2real22_", "sim2real23_", "sim_"]
+    num_real = 4
+    num_sim = 4
 
-    runs = [1, 2, 3]
+    runs = [1, 2, 3, 4, 5]
 
     # Define the list of evaluation ranges
-    evaluation_ranges = ["0_33", "33_66", "66_100", "0_100"]
+    evaluation_ranges = ["0_100", "0_33"]
 
     # Define the list of evaluation datasets
     evaluation_datasets = ["real", "sim"]
@@ -462,5 +465,8 @@ if __name__ == "__main__":
 
     # avg, max, last, median
     metric = "max"
+
+    # IoU treshold for 3D AP (0.5 or 0.7)
+    iou_tresh = 0.7
 
     main()
