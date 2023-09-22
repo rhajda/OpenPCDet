@@ -256,8 +256,8 @@ def plot_results(colors, runs):
                 )
 
         plt.xlabel("Evaluation Dataset")
-        plt.ylabel("3D AP (0.7) in %")
-        plt.title(f"3D AP (0.7) for Evaluation Range {eval_range} - Metric: {metric.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
+        plt.ylabel(f"3D AP ({iou_tresh}) in %")
+        plt.title(f"3D AP ({iou_tresh}) for Evaluation Range {eval_range} - Metric: {metric.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
         plt.xticks(index + bar_width * (len(mean_df.columns) - 1) / 2, evaluation_datasets, rotation=45)
 
         # Add a legend that includes both evaluation and training dataset names
@@ -309,7 +309,7 @@ def plot_results(colors, runs):
             # Set the x-axis label
             axs[i].set_xlabel("Training Dataset", labelpad=10)
 
-            axs[i].set_ylabel("3D AP (0.7) in %")
+            axs[i].set_ylabel(f"3D AP ({iou_tresh}) in %")
             axs[i].set_title(f"Evaluation Dataset: {eval_dataset}")
             axs[i].set_ylim(0, 100)
 
