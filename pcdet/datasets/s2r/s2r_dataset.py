@@ -519,7 +519,7 @@ def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=16)
     print(f"TRAIN mean LENGTH: {mean_l}")
     print(f"TRAIN mean WIDTH: {mean_w}")
     print(f"TRAIN mean HEIGHT: {mean_h}")
-    with open(train_means, "wb") as f:
+    with open(train_means, "w") as f:
         f.write(f"LENGTH,WIDTH,HEIGHT\n{mean_l},{mean_w},{mean_h}")
     print('Train means saved to %s' % train_means)
 
@@ -539,7 +539,7 @@ def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=16)
     print(f"VAL mean LENGTH: {mean_l}")
     print(f"VAL mean WIDTH: {mean_w}")
     print(f"VAL mean HEIGHT: {mean_h}")
-    with open(val_means, "wb") as f:
+    with open(val_means, "w") as f:
         f.write(f"LENGTH,WIDTH,HEIGHT\n{mean_l},{mean_w},{mean_h}")
     print('Test means saved to %s' % train_means)
 
