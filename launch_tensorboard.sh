@@ -1,2 +1,2 @@
-source /home/calcmitarbeiter/huch/venv/bin/activate
-tensorboard --logdir $1
+source /home/calcstudenten/salinas_huch/venv/bin/activate
+tensorboard --bind_all --logdir $1
