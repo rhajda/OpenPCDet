@@ -156,7 +156,7 @@ def main_rename_kitti_carla_dataset(POINT_CLOUD_RANGE, label_path, velodyne_path
 if __name__ == "__main__":
 
     POINT_CLOUD_RANGE = [0, -40, -3, 70.4, 40, 1]
-    root_path = os.path.join("/home/data/converted_to_kitti_format/waymo_in_kitti_format/training/")
+    root_path = os.path.join("/home/data/converted_to_kitti_format/waymo_in_kitti_format_all/training/")
 
     label_path = os.path.join(root_path, "label_kitti_carla")
     velodyne_path = os.path.join(root_path, "velodyne")

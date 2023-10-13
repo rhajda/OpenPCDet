@@ -283,7 +283,7 @@ def main_convert_kitti_cam_to_kitti_carla(waymo_in_kitti_camera_coordinate_folde
 if __name__ == "__main__":
 
     # Define paths to data
-    waymo_in_kitti_camera_coordinate_folder = "/home/data/converted_to_kitti_format/waymo_in_kitti_format/training_0"
+    waymo_in_kitti_camera_coordinate_folder = "/home/data/converted_to_kitti_format/waymo_in_kitti_format/training"
     label_source_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "label_all")
     label_target_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "label_kitti_carla")
     calib_path = os.path.join(waymo_in_kitti_camera_coordinate_folder, "calib")

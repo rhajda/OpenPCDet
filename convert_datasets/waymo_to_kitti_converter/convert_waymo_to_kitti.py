@@ -540,9 +540,9 @@ def waymo_data_prep(root_path, info_prefix, version, out_dir, workers, max_sweep
     for i, split in enumerate(splits):
         load_dir = osp.join(root_path, split)
         if split == 'validation':
-            save_dir = osp.join(out_dir, 'waymo_in_kitti_format', 'training')
+            save_dir = osp.join(out_dir, 'waymo_in_kitti_format_all', 'training')
         else:
-            save_dir = osp.join(out_dir, 'waymo_in_kitti_format', split)
+            save_dir = osp.join(out_dir, 'waymo_in_kitti_format_all', split)
 
         converter = Waymo2KITTI(load_dir,
                                 save_dir,
