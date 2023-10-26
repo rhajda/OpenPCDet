@@ -28,9 +28,9 @@ class S2rDataset(DatasetTemplate):
             eval_mode=eval_mode, test=test
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.root_split_path = self.root_path / 'training'
+        self.root_split_path = self.root_path / 'data'
 
-        split_dir = self.root_path / 'ImageSets_KITTI_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         self.tb_log = tb_log
@@ -90,9 +90,9 @@ class S2rDataset(DatasetTemplate):
             dataset_cfg=self.dataset_cfg, class_names=self.class_names, training=self.training, root_path=self.root_path, logger=self.logger
         )
         self.split = split
-        self.root_split_path = self.root_path / 'training'
+        self.root_split_path = self.root_path / 'data'
 
-        split_dir = self.root_path / 'ImageSets_KITTI_full' / (self.split + '.txt')
+        split_dir = self.root_path / 'ImageSets' / (self.split + '.txt')
         self.sample_id_list = [x.strip() for x in open(split_dir).readlines()] if split_dir.exists() else None
 
         if self.logger is not None:
@@ -101,7 +101,7 @@ class S2rDataset(DatasetTemplate):
             print(f"Set split to {self.split}")
 
     def get_lidar(self, idx):
-        lidar_file = self.root_split_path / 'velodyne' / ('%s.pcd' % idx)
+        lidar_file = self.root_split_path / 'pcl' / ('%s.pcd' % idx)
         assert lidar_file.exists()
         return np.asarray(o3d.io.read_point_cloud(str(lidar_file), format="pcd").points)
 
@@ -126,7 +126,7 @@ class S2rDataset(DatasetTemplate):
         return np.array(io.imread(img_file).shape[:2], dtype=np.int32)
 
     def get_label(self, idx):
-        label_file = self.root_split_path / 'label_2' / ('%s.txt' % idx)
+        label_file = self.root_split_path / 'label' / ('%s.txt' % idx)
         assert label_file.exists()
         return object3d_kitti.get_objects_from_label(label_file)
 
@@ -388,10 +388,9 @@ class S2rDataset(DatasetTemplate):
         from .kitti_object_eval_python import eval as kitti_eval
 
         eval_det_annos = copy.deepcopy(det_annos)
-        #eval_gt_annos = [copy.deepcopy(info['annos']) for info in self.kitti_infos if info != {}]
         eval_gt_annos = [eval_det_anno["gt"]["annos"] for eval_det_anno in eval_det_annos]
+        orig_len = len(eval_gt_annos)
 
-        """
         # Limit annos to range set in dataset_config
         range_min = self.eval_range[0]
         range_max = self.eval_range[1]
@@ -413,8 +412,8 @@ class S2rDataset(DatasetTemplate):
         print(f"Limit evaluation to ground truth bounding boxes  in range {range_min} to {range_max} m!")
         print(f"Ground truth detections left: {len(eval_gt_annos_lim)}/{orig_len}")
         print("########################################################################################")
-        """
-        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos, eval_det_annos, class_names)
+
+        ap_result_str, ap_dict = kitti_eval.get_official_eval_result(eval_gt_annos_lim, eval_det_annos_lim, class_names)
 
         return ap_result_str, ap_dict
 
@@ -535,16 +534,16 @@ def create_s2r_infos(dataset_cfg, class_names, data_path, save_path, workers=16)
     print(f"VAL mean WIDTH: {mean_w}")
     print(f"VAL mean HEIGHT: {mean_h}")
 
-    # dataset.set_split(test_split)
-    # kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
-    # with open(test_filename, 'wb') as f:
-    #     pickle.dump(kitti_infos_test, f)
-    # print('Kitti info test file is saved to %s' % test_filename)
-
+    dataset.set_split(test_split)
+    kitti_infos_test = dataset.get_infos(num_workers=workers, has_label=True, count_inside_pts=True)
+    with open(test_filename, 'wb') as f:
+        pickle.dump(kitti_infos_test, f)
+    print('Kitti info test file is saved to %s' % test_filename)
+    '''
     print('---------------Start create groundtruth database for data augmentation---------------')
     dataset.set_split(train_split)
     dataset.create_groundtruth_database(train_filename, split=train_split)
-
+    '''
     print('---------------Data preparation Done---------------')
 
 
@@ -559,6 +558,6 @@ if __name__ == '__main__':
         create_s2r_infos(
             dataset_cfg=dataset_cfg,
             class_names=['Car'],
-            data_path=ROOT_DIR / 'data' / 's2r',
-            save_path=ROOT_DIR / 'data' / 's2r'
+            data_path=ROOT_DIR / 'data' / 's2r' / sys.argv[3],
+            save_path=ROOT_DIR / 'data' / 's2r' / sys.argv[3]
         )
