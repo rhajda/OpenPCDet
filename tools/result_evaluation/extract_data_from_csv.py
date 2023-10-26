@@ -5,9 +5,22 @@ import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches  # Import mpatches
+import matplotlib.patches as mpatches
+from matplotlib import rc
 from sklearn.manifold import TSNE
+import statsmodels.api as sm
+from umap.umap_ import UMAP
 
+
+fontsize = 28
+plt.rcParams["font.size"] = str(fontsize)
+rc('axes', linewidth=2)
+plt.rcParams["font.family"] = ["Times New Roman"]
+
+font = {'family': ['Times New Roman'],
+                'color': 'black',
+                'size': fontsize,
+                }
 
 def extract_data(runs):
     # Create a directory to store CSV files
@@ -50,10 +63,14 @@ def extract_data(runs):
                                 for row in csv_reader:
                                     epoch, values, _ = row
                                     epoch = int(epoch)
-                                    if iou_tresh == 0.5:
+                                    if iou_tresh == 0.5 and metric == "ap":
                                         value = float(values.split(",")[1])
-                                    elif iou_tresh == 0.7:
+                                    elif iou_tresh == 0.7 and metric == "ap":
                                         value = float(values.split(",")[3])
+                                    elif iou_tresh == 0.5 and metric == "recall":
+                                        value = float(values.split(",")[5])*100
+                                    elif iou_tresh == 0.7 and metric == "recall":
+                                        value = float(values.split(",")[6])*100
                                     else:
                                         raise NotImplementedError(f"IoU Threshold must be 0.5 or 0.7, selected: {iou_tresh}")
 
@@ -78,11 +95,11 @@ def extract_data(runs):
 
                                 # Store the extracted value along with information about the dataset, eval range folder, and network
                                 key = f"{network}_{training_dataset}_{run}_{eval_range_folder}"
-                                extracted_data[key] = values[metric]
+                                extracted_data[key] = values[aggregate]
                                 extracted_data_list[key] = values_list_last_n  # Store the last_n_epochs values list
 
                                 # Store the epoch separately
-                                epochs[key] = epochs_list[-last_n_epochs:][np.asarray(extracted_data_list[key][-last_n_epochs:]).argmax()] if metric == "max" else int(epoch)
+                                epochs[key] = epochs_list[-last_n_epochs:][np.asarray(extracted_data_list[key][-last_n_epochs:]).argmax()] if aggregate == "max" else int(epoch)
 
         # Iterate over evaluation ranges
         for eval_range in evaluation_ranges:
@@ -114,6 +131,52 @@ def extract_data(runs):
                     epochs_csv_writer.writerow(epochs_row)
 
     print(f"Extracted data and epoch data saved to {output_dir}")
+
+
+def create_csv_paper():
+    # Calc means and stds from all runs
+    means = np.zeros((len(training_datasets), len(evaluation_ranges)))
+    stds = np.zeros_like(means)
+    for range_idx, eval_range in enumerate(evaluation_ranges):
+        # Load data from CSV files for the specified runs
+        data_list = []
+        for run in runs:
+            data = pd.read_csv(f"{network}_output_csv/extracted_data_{eval_range}_{run}.csv", header=None)
+            data_list.append(data)
+
+        # Concatenate data from multiple runs
+        combined_data = np.asarray(data_list)
+
+        # Calculate mean and standard deviation for each evaluation dataset
+        means[:, range_idx] = combined_data.mean(axis=0)[:,0]
+        stds[:, range_idx] = combined_data.std(axis=0)[:,0]
+
+    # Create an empty list to store the formatted strings
+    formatted_data = []
+
+    # Define a Unicode combining character for the plus symbol above the minus symbol
+    plus_minus_symbol = "$\pm$"
+    stds_font_size = "\\tiny"
+
+    # Iterate through the means and stds arrays and format the data
+    for i in range(means.shape[0]):
+        row = []
+        for j in range(means.shape[1]):
+            mean_str = f"{means[i, j]:.2f}"
+            std_str = f"{stds[i, j]:.2f}"
+            formatted_value = f"{mean_str}{stds_font_size}{plus_minus_symbol}{std_str}"
+            row.append(formatted_value)
+        formatted_data.append(row)
+
+    # save to csv
+    output_root_dir = f"paper_csv"
+    output_dir = os.path.join(output_root_dir, f"{network}")
+    os.makedirs(output_dir, exist_ok=True)
+    output_csv_paper_path = os.path.join(output_dir, f"{metric}_{str(iou_tresh).replace('.', '')}.csv")
+
+    with open(output_csv_paper_path, "w", newline="") as csv_file:
+        csv_writer = csv.writer(csv_file, delimiter=' ')
+        csv_writer.writerows(formatted_data)
 
 
 # Define a function to extract data based on epoch information
@@ -177,10 +240,10 @@ def extract_glob_feats(runs):
 def define_colors():
     # Define the specified colors
     colors = dict()
-    for i in range(num_real):
-        colors[i] = tuple(np.asarray((190, (255/num_real) * i / 2, 0)) / 255)
     for i in range(num_sim):
-        colors[num_sim - i + num_real - 1] = tuple(np.asarray(((255/num_sim) * i, 202, 225)) / 255)
+        colors[i] = tuple(np.asarray(((255/num_sim) * i, 202, 225)) / 255)
+    for i in range(num_real):
+        colors[num_real - i + num_sim - 1] = tuple(np.asarray((190, (255/num_real) * i / 2, 0)) / 255)
     # sort dict by key
     colors = dict(sorted(colors.items()))
     return colors
@@ -257,7 +320,7 @@ def plot_results(colors, runs):
 
         plt.xlabel("Evaluation Dataset")
         plt.ylabel(f"3D AP ({iou_tresh}) in %")
-        plt.title(f"3D AP ({iou_tresh}) for Evaluation Range {eval_range} - Metric: {metric.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
+        plt.title(f"3D AP ({iou_tresh}) for Evaluation Range {eval_range} - Aggregate: {aggregate.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
         plt.xticks(index + bar_width * (len(mean_df.columns) - 1) / 2, evaluation_datasets, rotation=45)
 
         # Add a legend that includes both evaluation and training dataset names
@@ -336,7 +399,7 @@ def plot_results(colors, runs):
                           colors.items()]
 
         # Include the evaluation range in the title of the figure
-        fig.suptitle(f"Boxplots for runs {runs} in evaluation range {eval_range} for metric '{metric}' calculated from last {last_n_epochs} epochs", fontsize=16)
+        fig.suptitle(f"Boxplots for runs {runs} in evaluation range {eval_range} for aggregate '{aggregate}' calculated from last {last_n_epochs} epochs", fontsize=fontsize)
 
         # Adjust spacing between subplots
         plt.tight_layout()
@@ -346,6 +409,165 @@ def plot_results(colors, runs):
 
         # Save the plot as an image (optional)
         plt.savefig(os.path.join(figs_dir, f"plot_boxplot_{eval_range}.png"))
+
+def plot_boxplot_paper(colors, runs):
+    if num_real + num_sim > 3:
+        colors = {0: tuple(np.asarray((158, 202, 225)) / 255),
+                  1: tuple(np.asarray((44,162,95)) / 255),
+                  2: tuple(np.asarray((44,162,95)) / 255),
+                  3: tuple(np.asarray((44,162,95)) / 255),
+                  4: tuple(np.asarray((44,162,95)) / 255),
+                  5: tuple(np.asarray((49, 130, 189)) / 255),
+                  6: tuple(np.asarray((190, 0, 0)) / 255)}
+    else:
+        colors = {0: tuple(np.asarray((158, 202, 225)) / 255),
+                  1: tuple(np.asarray((49, 130, 189)) / 255),
+                  2: tuple(np.asarray((255, 158, 132)) / 255),
+                  3: tuple(np.asarray((190, 0, 0)) / 255)}
+
+        if num_real > num_sim:
+            colors_active = [0, 2, 3]
+        else:
+            colors_active = [0, 1, 3]
+
+        colors = {num:val for num, val in enumerate([val for key, val in colors.items() if key in colors_active])}
+
+    ranges = ["0.0", "33.3", "66.6", "100.0"]
+
+    # Create a directory to store figures
+    figs_dir = f"paper_{network}_figs"
+    os.makedirs(figs_dir, exist_ok=True)
+
+    for eval_range in evaluation_ranges:
+        # Load data from CSV files for the specified runs
+        data_list = []
+        for run in runs:
+            data = pd.read_csv(f"{network}_output_csv/extracted_data_{eval_range}_{run}.csv", header=None)
+            data_list.append(data)
+
+        # Concatenate data from multiple runs
+        combined_data = np.asarray(data_list)
+
+        # Iterate over evaluation datasets
+        for i, eval_dataset in enumerate(evaluation_datasets):
+            # Create a new figure with a single subplot for both boxplots
+            if num_real + num_sim > 3:
+                figsize = (18, 9)
+            else:
+                figsize = (7.5, 9)
+            fig, axs = plt.subplots(1, 1, figsize=figsize)
+
+            # Font
+            plt.rcParams["font.size"] = str(fontsize)
+            plt.rcParams["font.family"] = ["Times New Roman"]
+
+            # Get the data for the current evaluation dataset from combined_data
+            data_by_eval_dataset = combined_data[:, :, i]
+
+            # Create beanplot for the current evaluation dataset on the appropriate subplot
+            for n in range(len(training_datasets)):
+                plot_opts = dict(violin_width=0.8, bean_show_median=False, bean_color='black', jitter_fc='black',
+                                 bean_mean_color='black', bean_mean_size=1.0,
+                                 violin_fc=colors[n],
+                                 violin_alpha=1.0)
+                if np.all(data_by_eval_dataset.T[n] == data_by_eval_dataset.T[n][0]):
+                    # if values from all 5 runs are identical, add +1e-12 to last run to prevent error in beanplot
+                    data_by_eval_dataset.T[n][-1] += 1e-12
+                beanplots = sm.graphics.beanplot(data=np.expand_dims(data_by_eval_dataset.T[n], axis=0),
+                                                 ax=axs,
+                                                 labels=[training_datasets[n]],
+                                                 plot_opts=plot_opts,
+                                                 positions=[n + 1],
+                                                 jitter=True)
+
+            # Horizontal lines for source and target
+            source_mean = np.mean(combined_data[:, 0, 0])
+            target_mean = np.mean(combined_data[:, -1, 0])
+            axs.axhline(y=source_mean, color='k', linestyle='dotted')
+            axs.axhline(y=target_mean, color='k', linestyle='dotted')
+            axs.text(0.51, source_mean + 1, "Source", ha='left', va='center', color='k', fontsize=12)
+            axs.text(0.51, target_mean + 1, "Target", ha='left', va='center', color='k', fontsize=12)
+
+            # Consistent Labels
+            labels = []
+            if num_real + num_sim > 3:
+                for training_dataset in training_datasets:
+                    if training_dataset == "real_":
+                        labels.append("Real\n(Target)")
+                    elif training_dataset == "real2sim20_":
+                        labels.append("Real-to-Sim\n$\\delta=3$")
+                    elif training_dataset == "real2sim21_":
+                        labels.append("Real-to-Sim")
+                    elif training_dataset == "real2sim22_":
+                        labels.append("Real-to-Sim\nNo-GAN")
+                    elif training_dataset == "sim2real22_":
+                        labels.append("Sim-to-Real")
+                    elif training_dataset == "sim2real21_":
+                        labels.append("Sim-to-Real\n$\\delta=$5")
+                    elif training_dataset == "sim2real20_":
+                        labels.append("Sim-to-Real\n$\\delta=$3")
+                    elif training_dataset == "sim2real23_":
+                        labels.append("Sim-to-Real\nNo-GAN")
+                    elif training_dataset == "sim_noise_obj_" or training_dataset == "sim_noise_":
+                        labels.append("Sim-Noise")
+                    elif training_dataset == "sim_":
+                        labels.append("Sim\n(Source)")
+            else:
+                for training_dataset in training_datasets:
+                    if training_dataset == "real_":
+                        labels.append("Real\n(Target)")
+                    elif training_dataset[:8] == "sim2real":
+                        labels.append("Sim-to-Real")
+                    elif training_dataset[:8] == "real2sim":
+                        labels.append("Real-to-Sim")
+                    elif training_dataset[:9] == "sim_noise":
+                        labels.append("Sim-Noise")
+                    elif training_dataset == "sim_":
+                        labels.append("Sim\n(Source)")
+
+            # Set the x-ticks positions and labels
+            x_ticks_positions = np.arange(1, len(training_datasets) + 1)
+            x_ticks_labels = labels
+
+            axs.set_xticks(x_ticks_positions)
+            axs.set_xticklabels(x_ticks_labels, rotation=00)
+            axs.tick_params(axis='x', which='both', bottom=True, top=False)
+            axs.tick_params(axis='x', which='minor', bottom=False)
+            axs.tick_params(axis='both', which='major', pad=15)
+
+            # Set the x-axis label
+            axs.set_xlabel("Training Dataset", labelpad=15, fontdict=font)
+            axs.set_xlim(0.45, len(training_datasets) + 0.55)
+
+            range_list = []
+            for range_ in eval_range.split("_"):
+                for range_lookup in ranges:
+                    if int(range_) == int(np.floor(float(range_lookup))):
+                        range_list.append(range_lookup)
+                        break  # Once a match is found, exit the inner loop
+
+            axs.set_ylabel(f"3D AP ({iou_tresh}) in %", fontdict=font, labelpad=15)
+            title = f"Range: [{range_list[0]} m, {range_list[1]} m]" if range_list[1] == "100.0" else f"Range: [{range_list[0]} m, {range_list[1]} m["
+            axs.set_title(title, fontsize=fontsize, pad=15, fontdict=font)
+            axs.set_ylim(0, 100)
+
+            # Add horizontal lines at every 10th value on the y-axis
+            axs.set_yticks(np.arange(0, 101, 10))
+            axs.grid(axis='y', linestyle='--', which='major', color='gray', linewidth=0.5)
+
+            # Add minor horizontal grid lines without labels every 1 value
+            axs.minorticks_on()
+            axs.grid(axis='y', linestyle=':', which='minor', color='gray', linewidth=0.5, alpha=0.4)
+
+            # Adjust spacing between subplots
+            plt.tight_layout()
+
+            # Save the plot as an image (optional)
+            if "Sim-Noise" in labels:
+                fig_title = f"beanplot_{eval_range}_{eval_dataset}_ablation.pdf"
+            else:
+                fig_title = f"beanplot_{eval_range}_{eval_dataset}.pdf"
+            plt.savefig(os.path.join(figs_dir, fig_title))
 
 
 def plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=30):
@@ -420,16 +642,228 @@ def plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, eval
             plt.savefig(os.path.join(figs_dir, f"plot_tsne_{eval_dataset}_{eval_range}_{perplexity}.png"))
 
 
+def plot_tsne_paper(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=30):
+    colors = {0: tuple(np.asarray((190, 0, 0)) / 255),
+              1: tuple(np.asarray((255, 158, 132)) / 255),
+              2: tuple(np.asarray((49, 130, 189)) / 255),
+              3: tuple(np.asarray((158, 202, 225)) / 255)}
+
+    if num_real > num_sim:
+        colors_active = [0, 1, 3]
+    else:
+        colors_active = [0, 2, 3]
+
+    colors = {num: val for num, val in enumerate([val for key, val in colors.items() if key in colors_active])}
+
+    # Create a directory to store figures
+    figs_dir = f"paper_{network}_figs"
+    os.makedirs(figs_dir, exist_ok=True)
+
+    # Iterate over evaluation ranges
+    for eval_range in evaluation_ranges:
+        # Iterate over evaluation datasets
+        for eval_dataset in evaluation_datasets:
+            # Create a sub-plot for the current evaluation range and dataset
+            fig, ax = plt.subplots(figsize=(12, 12))
+
+            # Font
+            plt.rcParams["font.size"] = str(fontsize)
+            plt.rcParams["font.family"] = ["Times New Roman"]
+
+            # Create empty arrays to store t-SNE points and labels
+            tsne_points = np.array([])
+            tsne_labels = []
+            plot_labels = []
+
+            # Iterate over training datasets
+            for training_dataset in training_datasets:
+                for run in runs:
+                    # Define the key for extracted_glob_feats
+                    key = f"{network}_{training_dataset}_{run}_{eval_dataset}_{eval_range}"
+
+                    # Check if the key exists in extracted_glob_feats
+                    if key in extracted_glob_feats:
+                        data = extracted_glob_feats[key]
+
+                        # Convert data to a NumPy array
+                        data = np.array(data)
+
+                        # Append the t-SNE points to the array
+                        if tsne_points.size == 0:
+                            tsne_points = data
+                        else:
+                            tsne_points = np.vstack((tsne_points, data))
+
+                        # Create labels for the current training dataset
+                        labels = np.full(data.shape[0], training_dataset)
+
+                        # Append the labels to tsne_labels
+                        tsne_labels.extend(labels)
+
+                    if training_dataset == "real_":
+                        plot_labels.append("Real")
+                    elif training_dataset[:8] == "sim2real":
+                        plot_labels.append("Sim-to-Real")
+                    elif training_dataset[:8] == "real2sim":
+                        plot_labels.append("Real-to-Sim")
+                    elif training_dataset[:9] == "sim_noise":
+                        plot_labels.append("Sim-Noise")
+                    elif training_dataset == "sim_":
+                        plot_labels.append("Sim")
+
+            # Use t-SNE to reduce the dimensionality to 2
+            tsne = TSNE(n_components=2, learning_rate='auto', init='pca', perplexity=perplexity, method="barnes_hut", verbose=True, n_iter=1000)
+            tsne_result = tsne.fit_transform(tsne_points)
+
+            # Scatter plot the t-SNE points with labels
+            unique_labels = np.asarray(training_datasets)
+
+            scatter = []
+            for i, label in enumerate(unique_labels):
+                x = tsne_result[np.array(tsne_labels) == label][:, 0]
+                y = tsne_result[np.array(tsne_labels) == label][:, 1]
+                scatter.append(ax.scatter(x, y, color=colors[i], label=label))
+                scatter[-1].set_rasterized(True)
+
+            plt.legend()
+            plt.legend((scatter),
+                       plot_labels,
+                       scatterpoints=1,
+                       markerscale=2,
+                       # loc='upper right',
+                       ncol=1,
+                       fontsize=fontsize)
+            plt.grid(True)
+            ax.set_axisbelow(True)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.xaxis.set_ticks_position('none')
+            ax.yaxis.set_ticks_position('none')
+            ax.axis('equal')
+            plt.subplots_adjust(top=0.99, bottom=0.01, right=0.99, left=0.01, hspace=0, wspace=0)
+
+            # Save the plot as an image (optional)
+            plt.savefig(os.path.join(figs_dir, f"plot_tsne_{eval_dataset}_{eval_range}_{perplexity}.pdf"))
+
+
+def plot_umap_paper(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=30):
+    colors = {0: tuple(np.asarray((190, 0, 0)) / 255),
+              1: tuple(np.asarray((255, 158, 132)) / 255),
+              2: tuple(np.asarray((49, 130, 189)) / 255),
+              3: tuple(np.asarray((158, 202, 225)) / 255)}
+
+    if num_real > num_sim:
+        colors_active = [0, 1, 3]
+    else:
+        colors_active = [0, 2, 3]
+
+    colors = {num: val for num, val in enumerate([val for key, val in colors.items() if key in colors_active])}
+
+    # Create a directory to store figures
+    figs_dir = f"paper_{network}_figs"
+    os.makedirs(figs_dir, exist_ok=True)
+
+    # Iterate over evaluation ranges
+    for eval_range in evaluation_ranges:
+        # Iterate over evaluation datasets
+        for eval_dataset in evaluation_datasets:
+            # Create a sub-plot for the current evaluation range and dataset
+            fig, ax = plt.subplots(figsize=(12, 12))
+
+            # Font
+            plt.rcParams["font.size"] = str(fontsize)
+            plt.rcParams["font.family"] = ["Times New Roman"]
+
+            # Create empty arrays to store t-SNE points and labels
+            umap_points = np.array([])
+            tsne_labels = []
+            plot_labels = []
+
+            # Iterate over training datasets
+            for training_dataset in training_datasets:
+                for run in runs:
+                    # Define the key for extracted_glob_feats
+                    key = f"{network}_{training_dataset}_{run}_{eval_dataset}_{eval_range}"
+
+                    # Check if the key exists in extracted_glob_feats
+                    if key in extracted_glob_feats:
+                        data = extracted_glob_feats[key]
+
+                        # Convert data to a NumPy array
+                        data = np.array(data)
+
+                        # Append the t-SNE points to the array
+                        if umap_points.size == 0:
+                            umap_points = data
+                        else:
+                            umap_points = np.vstack((umap_points, data))
+
+                        # Create labels for the current training dataset
+                        labels = np.full(data.shape[0], training_dataset)
+
+                        # Append the labels to tsne_labels
+                        tsne_labels.extend(labels)
+
+                    if training_dataset == "real_":
+                        plot_labels.append("Real")
+                    elif training_dataset[:8] == "sim2real":
+                        plot_labels.append("Sim-to-Real")
+                    elif training_dataset[:8] == "real2sim":
+                        plot_labels.append("Real-to-Sim")
+                    elif training_dataset[:9] == "sim_noise":
+                        plot_labels.append("Sim-Noise")
+                    elif training_dataset == "sim_":
+                        plot_labels.append("Sim")
+
+            # Use UMAP to reduce the dimensionality to 2
+            reducer = UMAP()
+            umap_result = reducer.fit_transform(umap_points)
+
+            # Scatter plot the t-SNE points with labels
+            unique_labels = np.asarray(training_datasets)
+
+            scatter = []
+            for i, label in enumerate(unique_labels):
+                x = umap_result[np.array(tsne_labels) == label][:, 0]
+                y = umap_result[np.array(tsne_labels) == label][:, 1]
+                scatter.append(ax.scatter(x, y, color=colors[i], label=label))
+                scatter[-1].set_rasterized(True)
+
+            plt.legend()
+            plt.legend((scatter),
+                       plot_labels,
+                       scatterpoints=1,
+                       markerscale=2,
+                       # loc='upper right',
+                       ncol=1,
+                       fontsize=fontsize)
+            plt.grid(True)
+            ax.set_axisbelow(True)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.xaxis.set_ticks_position('none')
+            ax.yaxis.set_ticks_position('none')
+            ax.axis('equal')
+            plt.subplots_adjust(top=0.99, bottom=0.01, right=0.99, left=0.01, hspace=0, wspace=0)
+
+            # Save the plot as an image (optional)
+            plt.savefig(os.path.join(figs_dir, f"plot_umap_{eval_dataset}_{eval_range}_{perplexity}.pdf"))
+
 def main():
     colors = define_colors()
 
     # mAP
     extract_data(runs)
-    plot_results(colors, runs)
+    create_csv_paper()
+    #plot_results(colors, runs)
+    plot_boxplot_paper(colors, runs)
+
 
     # t-SNE
     #extracted_glob_feats = extract_glob_feats(runs)
     #plot_tsne(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=3)
+    #plot_tsne_paper(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=5)
+    #plot_umap_paper(extracted_glob_feats, evaluation_datasets, training_datasets, evaluation_ranges, runs, colors, perplexity=5)
 
     plt.show()
 
@@ -439,19 +873,24 @@ def main():
 if __name__ == "__main__":
     # Define the list of training dataset names
     training_datasets = ["real_", "real2sim20_", "real2sim21_", "real2sim22_", "sim_noise_obj_", "sim2real22_", "sim2real23_", "sim_"]
-    num_real = 4
-    num_sim = 4
+    training_datasets = ["real_", "sim2real22_", "sim2real21_", "sim2real20_", "sim2real23_", "sim_noise_obj_", "sim_"]
+    training_datasets = ["real_", "real2sim21_", "sim_"]
+    training_datasets = ["sim_noise_"]
+    training_datasets = ["sim_", "sim2real22_", "real_"]
+    training_datasets = ["sim_", "sim2real23_", "sim_noise_obj_", "sim2real20_", "sim2real21_", "sim2real22_", "real_"]
+    num_real = 1
+    num_sim = 6
 
     runs = [1, 2, 3, 4, 5]
 
     # Define the list of evaluation ranges
-    evaluation_ranges = ["0_100", "0_33"]
+    evaluation_ranges = ["0_100"]
 
-    # Define the list of evaluation datasets
-    evaluation_datasets = ["real", "sim"]
+    # Define the list of evaluation datasets (real or sim)
+    evaluation_datasets = ["real"]
 
     # Select the network (pointpillar or pointrcnn)
-    network = "pointrcnn"
+    network = "pointpillar"
 
     # Create a dictionary to store the extracted values
     extracted_data = {}
@@ -464,9 +903,12 @@ if __name__ == "__main__":
     last_n_epochs = 10  # Change this as needed
 
     # avg, max, last, median
-    metric = "max"
+    aggregate = "max"
+
+    # ap or recall
+    metric = "recall"
 
     # IoU treshold for 3D AP (0.5 or 0.7)
-    iou_tresh = 0.7
+    iou_tresh = 0.5
 
     main()
