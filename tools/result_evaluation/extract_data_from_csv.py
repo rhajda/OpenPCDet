@@ -63,16 +63,16 @@ def extract_data(runs):
                                 for row in csv_reader:
                                     epoch, values, _ = row
                                     epoch = int(epoch)
-                                    if iou_tresh == 0.5 and metric == "ap":
+                                    if iou_thresh == 0.5 and metric == "ap":
                                         value = float(values.split(",")[1])
-                                    elif iou_tresh == 0.7 and metric == "ap":
+                                    elif iou_thresh == 0.7 and metric == "ap":
                                         value = float(values.split(",")[3])
-                                    elif iou_tresh == 0.5 and metric == "recall":
+                                    elif iou_thresh == 0.5 and metric == "recall":
                                         value = float(values.split(",")[5])*100
-                                    elif iou_tresh == 0.7 and metric == "recall":
+                                    elif iou_thresh == 0.7 and metric == "recall":
                                         value = float(values.split(",")[6])*100
                                     else:
-                                        raise NotImplementedError(f"IoU Threshold must be 0.5 or 0.7, selected: {iou_tresh}")
+                                        raise NotImplementedError(f"IoU Threshold must be 0.5 or 0.7, selected: {iou_thresh}")
 
                                     # Append the value and epoch to the lists
                                     values_list.append(value)
@@ -172,7 +172,7 @@ def create_csv_paper():
     output_root_dir = f"paper_csv"
     output_dir = os.path.join(output_root_dir, f"{network}")
     os.makedirs(output_dir, exist_ok=True)
-    output_csv_paper_path = os.path.join(output_dir, f"{metric}_{str(iou_tresh).replace('.', '')}.csv")
+    output_csv_paper_path = os.path.join(output_dir, f"{metric}_{str(iou_thresh).replace('.', '')}.csv")
 
     with open(output_csv_paper_path, "w", newline="") as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=' ')
@@ -319,8 +319,8 @@ def plot_results(colors, runs):
                 )
 
         plt.xlabel("Evaluation Dataset")
-        plt.ylabel(f"3D AP ({iou_tresh}) in %")
-        plt.title(f"3D AP ({iou_tresh}) for Evaluation Range {eval_range} - Aggregate: {aggregate.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
+        plt.ylabel(f"3D AP ({iou_thresh}) in %")
+        plt.title(f"3D AP ({iou_thresh}) for Evaluation Range {eval_range} - Aggregate: {aggregate.capitalize()} of last {last_n_epochs} epochs - Runs: {runs}")
         plt.xticks(index + bar_width * (len(mean_df.columns) - 1) / 2, evaluation_datasets, rotation=45)
 
         # Add a legend that includes both evaluation and training dataset names
@@ -372,7 +372,7 @@ def plot_results(colors, runs):
             # Set the x-axis label
             axs[i].set_xlabel("Training Dataset", labelpad=10)
 
-            axs[i].set_ylabel(f"3D AP ({iou_tresh}) in %")
+            axs[i].set_ylabel(f"3D AP ({iou_thresh}) in %")
             axs[i].set_title(f"Evaluation Dataset: {eval_dataset}")
             axs[i].set_ylim(0, 100)
 
@@ -546,7 +546,7 @@ def plot_boxplot_paper(colors, runs):
                         range_list.append(range_lookup)
                         break  # Once a match is found, exit the inner loop
 
-            axs.set_ylabel(f"3D AP ({iou_tresh}) in %", fontdict=font, labelpad=15)
+            axs.set_ylabel(f"3D AP ({iou_thresh}) in %", fontdict=font, labelpad=15)
             title = f"Range: [{range_list[0]} m, {range_list[1]} m]" if range_list[1] == "100.0" else f"Range: [{range_list[0]} m, {range_list[1]} m["
             axs.set_title(title, fontsize=fontsize, pad=15, fontdict=font)
             axs.set_ylim(0, 100)
@@ -908,7 +908,7 @@ if __name__ == "__main__":
     # ap or recall
     metric = "recall"
 
-    # IoU treshold for 3D AP (0.5 or 0.7)
-    iou_tresh = 0.5
+    # IoU threshold for 3D AP (0.5 or 0.7)
+    iou_thresh = 0.5
 
     main()
