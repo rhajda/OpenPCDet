@@ -410,6 +410,7 @@ def plot_results(colors, runs):
         # Save the plot as an image (optional)
         plt.savefig(os.path.join(figs_dir, f"plot_boxplot_{eval_range}.png"))
 
+
 def plot_boxplot_paper(colors, runs):
     if num_real + num_sim > 3:
         colors = {0: tuple(np.asarray((158, 202, 225)) / 255),
@@ -849,6 +850,7 @@ def plot_umap_paper(extracted_glob_feats, evaluation_datasets, training_datasets
             # Save the plot as an image (optional)
             plt.savefig(os.path.join(figs_dir, f"plot_umap_{eval_dataset}_{eval_range}_{perplexity}.pdf"))
 
+
 def main():
     colors = define_colors()
 
@@ -871,26 +873,33 @@ def main():
 
 
 if __name__ == "__main__":
+    # Dataset association
+    # real_             REAL
+    # real2sim21_		R2S down5 1485 ONLY R2S
+    # sim_noise_obj_	NOISE
+    # sim2real20_		S2R down3 1479 sigma3
+    # sim2real21_		S2R down5 1483 sigma5
+    # sim2real22_		S2R down7 1484 BEST
+    # sim2real23_		S2R down7 1503 no-gan
+    # sim_			    SIM
+
     # Define the list of training dataset names
-    training_datasets = ["real_", "real2sim20_", "real2sim21_", "real2sim22_", "sim_noise_obj_", "sim2real22_", "sim2real23_", "sim_"]
-    training_datasets = ["real_", "sim2real22_", "sim2real21_", "sim2real20_", "sim2real23_", "sim_noise_obj_", "sim_"]
     training_datasets = ["real_", "real2sim21_", "sim_"]
-    training_datasets = ["sim_noise_"]
     training_datasets = ["sim_", "sim2real22_", "real_"]
-    training_datasets = ["sim_", "sim2real23_", "sim_noise_obj_", "sim2real20_", "sim2real21_", "sim2real22_", "real_"]
+    training_datasets = ["sim_", "sim_noise_obj_", "sim2real23_", "sim2real20_", "sim2real21_", "sim2real22_", "real_"]
     num_real = 1
     num_sim = 6
 
     runs = [1, 2, 3, 4, 5]
 
-    # Define the list of evaluation ranges
-    evaluation_ranges = ["0_100"]
+    # Define the list of evaluation ranges "0_33", "0_100"
+    evaluation_ranges = ["0_33"]
 
     # Define the list of evaluation datasets (real or sim)
     evaluation_datasets = ["real"]
 
-    # Select the network (pointpillar or pointrcnn)
-    network = "pointpillar"
+    # Select the network (pointrcnn or pointpillar)
+    network = "pointrcnn"
 
     # Create a dictionary to store the extracted values
     extracted_data = {}
@@ -906,9 +915,9 @@ if __name__ == "__main__":
     aggregate = "max"
 
     # ap or recall
-    metric = "recall"
+    metric = "ap"
 
     # IoU threshold for 3D AP (0.5 or 0.7)
-    iou_thresh = 0.5
+    iou_thresh = 0.7
 
     main()
