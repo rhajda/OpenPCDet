@@ -10,6 +10,7 @@ import itertools
 
 from base_functions import load_config, autolabel_path_manager
 from main_autolabel import main_pseudo_label
+from main_pipeline  import restrict_to_KITTI_fov
 from evaluate_labels import main_evaluate_labels
 
 # Define a working path used to access different paths
@@ -50,7 +51,7 @@ def plot_graphs():
 def sensitivity_analysis_nms(path_manager):
 
     # loop over THRESHOLD_NMS_OVERLAP and then loop over THRESHOLDS per class.
-    grid_threshold_nms_overlap = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    grid_threshold_nms_overlap = [0.4]
     grid_threshold_confidence_car_cyclist_pedestrian = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
 
@@ -69,7 +70,7 @@ def sensitivity_analysis_nms(path_manager):
             cfg['PIPELINE']['NMS_VOTING']['THRESHOLDS']['THRESHOLD_CONFIDENCE_PEDESTRIAN'] = threshold_confidence
 
             main_pseudo_label(cfg, BATCH_SIZE_VOTING=10000, START_AT_CHECKPOINT=False, START_FRAME=7400)
-            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, cfg.DATA.PATH_GROUND_TRUTHS, path_manager.get_path("path_pseudo_labels_nms"))
+            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, path_manager,  cfg.DATA.PATH_GROUND_TRUTHS, path_manager.get_path("path_pseudo_labels_nms"))
 
             new_row = { 'thres_conf': threshold_confidence,
                         'nms_overlap': threshold_nms,
@@ -88,13 +89,13 @@ def sensitivity_analysis_nms(path_manager):
 
             # Append the new row to the DataFrame
             df = df.append(new_row, ignore_index=True)
-            df.to_csv("/home/autolabel_pipeline/evaluation/sensitivity_NMS.csv", index=False)
+            df.to_csv("/home/autolabel_pipeline/evaluation/sensitivity_NMS_waymo_iteration6.csv", index=False)
 
     print("done")
 
 def sensitivity_analysis_majority(path_manager):
 
-    def vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1):
+    def vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1):
         print("thres_iou: ", thres_iou, "thres_3: ", thres_3, "thres_2: ", thres_2, "thres_1: ", thres_1)
 
         if True:
@@ -117,8 +118,8 @@ def sensitivity_analysis_majority(path_manager):
             cfg['PIPELINE']['MAJORITY_VOTING']['THRESHOLDS']['THRESHOLD_1_BBOX'][
                 'CONFIDENCE_PEDESTRIAN'] = thres_1
 
-            main_pseudo_label(cfg, BATCH_SIZE_VOTING=10000, START_AT_CHECKPOINT=False, START_FRAME=7430)
-            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, cfg.DATA.PATH_GROUND_TRUTHS,
+            main_pseudo_label(cfg, BATCH_SIZE_VOTING=10000, START_AT_CHECKPOINT=False, START_FRAME=0)
+            _, mAP3d_R40, confusion_matrix = main_evaluate_labels(cfg, path_manager, cfg.DATA.PATH_GROUND_TRUTHS,
                                                                   path_manager.get_path("path_pseudo_labels_majority"))
 
             new_row = {'thres_iou': thres_iou,
@@ -140,7 +141,7 @@ def sensitivity_analysis_majority(path_manager):
 
             # Append the new row to the DataFrame
             df = df.append(new_row, ignore_index=True)
-            df.to_csv("/home/autolabel_pipeline/evaluation/sensitivity_MAJORITY.csv", index=False)
+            df.to_csv("/home/autolabel_pipeline/evaluation/sensitivity_MAJORITY_extra_low_iteration3.csv", index=False)
 
             return df
 
@@ -172,35 +173,62 @@ def sensitivity_analysis_majority(path_manager):
 
                     for thres_1 in grid_threshold_1_bbox_group:
                         count += 1
-                        df = vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1)
+                        df = vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1)
         print(count)
         print("done")
 
-    else:
+    TYPE_2 = False
+    if TYPE_2:
         print("type_2.")
 
-        grid_threshold_iou = [0.3, 0.4, 0.5]
-        grid_threshold_3_bbox_group = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
-        grid_threshold_2_bbox_group = [0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
-        grid_threshold_1_bbox_group = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+        #grid_threshold_iou = [0.3, 0.4, 0.5]
+        #grid_threshold_3_bbox_group = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+        #grid_threshold_2_bbox_group = [0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+        #grid_threshold_1_bbox_group = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+
+        grid_threshold_iou = [0.4]
+        grid_threshold_3_bbox_group = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+        grid_threshold_2_bbox_group = [0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
+        grid_threshold_1_bbox_group = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.98]
 
         count = 0
         for thres_iou in grid_threshold_iou:
             for thres_3 in grid_threshold_3_bbox_group:
                 count += 1
                 thres_2, thres_1 = 1, 1
-                df = vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1)
+                df = vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1)
             for thres_2 in grid_threshold_2_bbox_group:
                 count += 1
                 thres_3, thres_1 = 1, 1
-                df = vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1)
+                df = vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1)
             for thres_1 in grid_threshold_1_bbox_group:
                 count += 1
                 thres_3, thres_2 = 1, 1
-                df = vote_and_evaluate(cfg, df, thres_iou, thres_3, thres_2, thres_1)
+                df = vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1)
 
         print(count)
         print("done")
+
+    TYPE_3 = True
+    if TYPE_3:
+        print("here: [ [0.7, 0.8, 0.9],[0.6, 0.7, 0.8],[0.5, 0.6, 0.7],[0.4, 0.5, 0.6],[0.3, 0.4, 0.5],[0.2, 0.3, 0.4]]")
+        grid_threshold_iou = 0.4
+        grid_threshold_bbox_groups = [ [0.7, 0.8, 0.9],
+                                       [0.6, 0.7, 0.8],
+                                       [0.5, 0.6, 0.7],
+                                       [0.4, 0.5, 0.6],
+                                       [0.3, 0.4, 0.5],
+                                       [0.2, 0.3, 0.4]]
+
+        for thres in grid_threshold_bbox_groups:
+            thres_iou = grid_threshold_iou
+            thres_3 = thres[0]
+            thres_2 = thres[1]
+            thres_1 = thres[2]
+
+            print(thres_iou,thres_3,thres_2,thres_1)
+            df = vote_and_evaluate(cfg, path_manager, df, thres_iou, thres_3, thres_2, thres_1)
+
 
 
 if __name__ == "__main__":

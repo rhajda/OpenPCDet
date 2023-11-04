@@ -25,29 +25,29 @@ def add_fake_elements(cfg, df_all, frame_ID):
 
     # Remove all rows except specific ones:
     # List of indices to keep
-    indices_to_keep = [11, 6, 15]
-    df_all = df_all.drop(df_all.index.difference(indices_to_keep))
+    #indices_to_keep = [11, 6, 15]
+    #df_all = df_all.drop(df_all.index.difference(indices_to_keep))
     df_all = df_all.reset_index(drop=True)
 
 
     # Change values of existing rows.
-    #df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
-    #df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0, 0, 0]
-    #df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [1, 0, 0]
+    df_all.loc[0, ['loc_x', 'loc_y', 'loc_z']] = [0, 30, 0]
+    df_all.loc[1, ['loc_x', 'loc_y', 'loc_z']] = [0, 30, 0]
+    df_all.loc[5, ['loc_x', 'loc_y', 'loc_z']] = [1, 30, 0]
     #df_all.loc[6, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
-    # df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
-    # df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+    #df_all.loc[8, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
+    #df_all.loc[10, ['loc_x', 'loc_y', 'loc_z']] = [2, 0, 0]
 
-    #df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
-    #df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
-    #df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
+    df_all.loc[0, ['dim_len', 'dim_wi', 'dim_ht']] = [4, 1.5, 1]
+    df_all.loc[1, ['dim_len', 'dim_wi', 'dim_ht']] = [4, 1.5, 1]
+    df_all.loc[5, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
     #df_all.loc[6, ['dim_len', 'dim_wi', 'dim_ht']] = [2, 1, 1]
     # df_all.loc[8, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
     # df_all.loc[10, ['dim_len', 'dim_wi', 'dim_ht']] = [3, 1.5, 1.5]
 
-    #df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.96]
-    #df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.96]
-    #df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
+    df_all.loc[0, ['label', 'rot_z', 'score']] = ["Car", np.radians(0), 0.96]
+    df_all.loc[1, ['label', 'rot_z', 'score']] = ["Car", np.radians(180), 0.96]
+    df_all.loc[5, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
     #df_all.loc[6, ['label', 'rot_z', 'score']] = ["Car", np.radians(90), 0.9]
     # df_all.loc[8, ['label', 'rot_z', 'score']] = ["Car", np.radians(55), 0.9]
     # df_all.loc[10, ['label', 'rot_z', 'score']] = ["Car", np.radians(30.0001), 0.9]
@@ -56,8 +56,8 @@ def add_fake_elements(cfg, df_all, frame_ID):
 
     print(df_all)
     df_group_save = df_all.copy()
-    save_pseudo_labels(path_manager, df_group_save, frame_ID, [False])
-    print("SAVED.")
+    #save_pseudo_labels(path_manager, df_group_save, frame_ID, [False])
+    #print("SAVED.")
     print("__________________________________________________________________")
 
     return df_all
@@ -159,6 +159,7 @@ def get_bbox_groups(cfg, df1, df2, df3, frame_ID):
     df2['metrics_model'] = 2
     df3['metrics_model'] = 3
     df_all = pd.concat([df1, df2, df3], ignore_index=True).sort_values('label').reset_index(drop=True)
+
 
     if ADD_ELEMENTS:
         df_all = add_fake_elements(cfg, df_all, frame_ID)
@@ -654,6 +655,7 @@ def majority_voting(cfg,path_manager, df1, df2, df3, frame_ID):
         return
 
     df_all, bbox_iou, bbox_groups = get_bbox_groups(cfg, df1, df2, df3, frame_ID)
+
     if len(bbox_groups) == 0:
         raise TypeError("No bounding box groups but elements in df_all. Check out error.")
 

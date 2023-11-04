@@ -37,24 +37,6 @@ The script can be triggered directly. It loads arguments form autolabel.yaml (VI
 
 
 
-# Function that loads the YAML file to access parameters.
-def load_config():
-    cfg_file = os.path.join(working_path, 'autolabel_pipeline/autolabel.yaml')
-    if not os.path.isfile(cfg_file):
-        raise FileNotFoundError
-
-    with open(cfg_file, 'r') as f:
-        try:
-            cfg_dict = yaml.safe_load(f)
-        except yaml.YAMLError as e:
-            print("Error parsing YAML file:", e)
-            return EasyDict()
-
-    cfg = EasyDict(cfg_dict)
-    return cfg
-
-
-
 # Function that generates an array containing only common elements present in every bbox source.
 def load_common_pcds(path_manager, bbox_source):
 
@@ -149,7 +131,7 @@ def translate_boxes_to_open3d_instance(gt_boxes, gt):
         color_second = [0, 1, 1]            # light blue
 
     if gt == 'pseudo_labels':
-        color_pseudo_labels = [0, 1, 0]     # green
+        color_pseudo_labels = [0, 0.7, 0]     # green
 
     center = gt_boxes[0:3]
     lwh = gt_boxes[3:6] * 1.0
@@ -377,6 +359,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
             print("Pseudo_labels (green), ID ", single_pcd, ": ", pseudo_label_labels)
             # print("Pseudo_label ID: ", pseudo_label_file)
 
+    #pcd.paint_uniform_color([0.7, 0.7, 0.7])
     vis.add_geometry(pcd)
     for box in boxes_3d:
         vis.add_geometry(box)

@@ -392,11 +392,11 @@ def do_eval(FN_counts, gt_annos, dt_annos, current_classes, min_overlaps, comput
     return None, None, mAP_3d, None, None, None, mAP_3d_R40, None, eval_dict
 
 def get_official_eval_result(FN_counts, gt_annos, dt_annos, current_classes, PR_detail_dict=None):
-    overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7,
-                             0.5, 0.7], [0.7, 0.5, 0.5, 0.7, 0.5, 0.7],
+    overlap_0_7 = np.array([[0.7, 0.5, 0.5, 0.7, 0.5, 0.7],
+                            [0.7, 0.5, 0.5, 0.7, 0.5, 0.7],
                             [0.7, 0.5, 0.5, 0.7, 0.5, 0.7]])
-    overlap_0_5 = np.array([[0.5, 0.5, 0.5, 0.7,
-                             0.5, 0.5], [0.5, 0.25, 0.25, 0.5, 0.25, 0.5],
+    overlap_0_5 = np.array([[0.5, 0.5, 0.5, 0.7, 0.5, 0.5],
+                            [0.5, 0.25, 0.25, 0.5, 0.25, 0.5],
                             [0.5, 0.25, 0.25, 0.5, 0.25, 0.5]])
     min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 5]
     class_to_name = {
@@ -572,6 +572,7 @@ def eval_with_empty_detection_frames(cfg, gt_annos, dt_annos):
         if len(dt_annos[i]['name']) == 0:
             empty_elements.append(i)
 
+
     # if no empty detections exist, proceed with eval.
     if len(empty_elements) == 0:
         result, ret_dict, my_eval_dict, mAP3d_R40 = get_official_eval_result(FN_counts, gt_annos, dt_annos, cfg.PIPELINE.CLASSES)
@@ -639,6 +640,7 @@ def compute_relative_error(matches, current_index ,gt_annos, dt_annos, overlaps)
     gt_dim_ht, dt_dim_ht = [], []
     gt_rot, dt_rot = [], []
 
+
     for j in range (len(matches)):
 
         dt_frame_index = matches[j][0]
@@ -694,7 +696,8 @@ def generate_evaluation_results(cfg, path_manager, result, FN_counts, empty_fram
 
     # Error info from eval_dict
     label_mapping = {"Car": 0, "Pedestrian": 1, "Cyclist": 2}
-    overlap_mapping = {"Car": 0.7, "Pedestrian": 0.5, "Cyclist": 0.5}
+    #overlap_mapping = {"Car": 0.7, "Pedestrian": 0.5, "Cyclist": 0.5}
+    overlap_mapping = {"Car": 0.5, "Pedestrian": 0.25, "Cyclist": 0.25}
 
     for label in cfg.PIPELINE.CLASSES:
         print(f"Class: {label}")
@@ -895,6 +898,11 @@ if __name__ == "__main__":
         raise ValueError("Autolabel cfg.PIPELINE.VOTING_SCHEME is not valid. Please check.")
 
     list_to_evaluate = [path_pseudo_labels]
+    #list_to_evaluate = [path_manager.get_path("path_ptrcnn_predictions"),
+    #                    path_manager.get_path("path_ptpillar_predictions"),
+    #                    path_manager.get_path("path_second_predictions")
+    #                    ]
+
     for folder_2 in list_to_evaluate:
         print("folder_1: ", folder_1)
         print("folder_2:", folder_2)

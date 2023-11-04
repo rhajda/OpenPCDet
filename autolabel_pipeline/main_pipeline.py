@@ -1,6 +1,10 @@
 
 # Import libraries
 from easydict import EasyDict
+from shapely.geometry import Polygon, Point
+from tqdm import tqdm
+import pandas as pd
+import numpy as np
 import subprocess
 import pathlib
 import shutil
@@ -9,7 +13,7 @@ import csv
 import os
 
 from base_functions import load_config, autolabel_path_manager
-from main_autolabel import main_pseudo_label
+from main_autolabel import main_pseudo_label, csv_to_dataframe
 from evaluate_labels import get_label_anno, main_evaluate_labels
 from pcdet.datasets.autolabel.autolabel_dataset import create_autolabel_infos
 
@@ -33,6 +37,46 @@ voting schemes:
     - majority voting
 
 """
+
+
+
+def restrict_to_KITTI_fov(cfg, path_manager):
+
+    def is_point_inside_polygon(point, polygon):
+        return polygon.contains(point)
+
+    def filter_dataframe(df):
+
+        polygon_coordinates = [(0, -4.05),  (56.95, -50), (85, -50), (85, 50), (56.95, 50), (0, 4.05), (0, -4.05)]
+        polygon = Polygon(polygon_coordinates)
+
+        filtered_rows = []
+        for index, row in df.iterrows():
+            point = Point(row['loc_x'], row['loc_y'])
+            if is_point_inside_polygon(point, polygon):
+                filtered_rows.append(row)
+
+        return pd.DataFrame(filtered_rows)
+
+    print("-> Restricting pseudo-labels to KITTI fov.")
+
+    prediction_folders = [path_manager.get_path("path_ptrcnn_predictions"),
+                          path_manager.get_path("path_ptpillar_predictions"),
+                          path_manager.get_path("path_second_predictions")]
+
+    for folder in prediction_folders:
+        print(f'Restricting predictions in: {folder}.')
+        # Use tqdm to create a loading bar for the current folder
+        for file_name in tqdm(os.listdir(folder), desc=f"Processing {folder}"):
+            if file_name.endswith('.csv'):
+                base_name = os.path.splitext(file_name)[0]
+                df = csv_to_dataframe(os.path.join(folder, file_name), base_name)
+                if df.empty:
+                    continue
+                df = filter_dataframe(df)
+                df.iloc[:, 1:].to_csv(os.path.join(folder, file_name), index=False, header=False)
+    return
+
 
 
 
@@ -71,6 +115,13 @@ def prepare_autolabel_data_models_folder(cfg_autolabel, path_manager):
             else:
                 os.remove(item_path)
         return
+
+    # Trigger a first message to confirm the prepare folders process.
+    trigger_confirmation = input(f"Do you want to trigger PREPARE_AUTOLABEL_DATA_MODELS_FOLDER (y/n): ")
+    if trigger_confirmation != "y":
+        print(f"PREPARE_AUTOLABEL_DATA_MODELS_FOLDER process aborted.")
+        exit()
+
 
     print("-> prepare autolabel data folder")
     path_past_iterations = os.path.join(path_manager.get_path("path_model_ckpt_dir"), "past_iterations")
@@ -328,8 +379,8 @@ def convert_pseudo_labels_to_labels(cfg, path_manager):
         initial_path = path_manager.get_path("path_pseudo_labels_majority")
         goal_path = pathlib.Path(os.path.join(path_manager.get_path("path_output_labels"), "majority_voting"))
 
-    elif cfg.DATA.PIPELINE.VOTING_SCHEME == 'NMS':
-        initial_path = ath_manager.get_path("path_pseudo_labels_nms")
+    elif cfg.PIPELINE.VOTING_SCHEME == 'NMS':
+        initial_path = path_manager.get_path("path_pseudo_labels_nms")
         goal_path = pathlib.Path(os.path.join(path_manager.get_path("path_output_labels"), "nms_voting"))
     else:
         raise ValueError("DATA.PIPELINE.VOTING_SCHEME is not valid.")
@@ -534,30 +585,32 @@ def cfg_train_model_update(path_manager, model, print_cfg):
     with open(cfg_file_model_path, 'r') as cfg_file:
         cfg_data = yaml.safe_load(cfg_file)
 
-    FLAG_RETRAIN = False
+    FLAG_RETRAIN = True
     # IF COMPLETE RETRAIN
     if FLAG_RETRAIN:
         # Rate at which evaluation is triggered. Every X epochs.
-        cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 4
+        cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 3   #4
         # Minimum number of training epochs before evaluating.
-        cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 54
+        cfg_data["OPTIMIZATION"]["EVAL_MIN_EPOCH"] = 50 #54
 
         # Model specific parameters, adapted to autolabel needs.
         if model == "pointrcnn":
-            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
-            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 73  #75
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 6  #6
             cfg_data['OPTIMIZATION']['LR'] = 0.01  # 0.01
 
         if model == "pointpillar":
-            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 75 #85
-            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 73 #75
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 8 #8 #10
+            cfg_data['OPTIMIZATION']['LR'] = 0.003  # 0.003
 
         if model == "second":
-            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 80 #90
-            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
+            cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 80     #80
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10 #10
+            cfg_data['OPTIMIZATION']['LR'] = 0.003  # 0.003
 
     # IF PARTIAL RETRAIN
-    else:
+    if not FLAG_RETRAIN:
         # Rate at which evaluation is triggered. Every X epochs.
         cfg_data["OPTIMIZATION"]["EVAL_RATE"] = 3
         # Minimum number of training epochs before evaluating.
@@ -576,7 +629,7 @@ def cfg_train_model_update(path_manager, model, print_cfg):
 
         if model == "second":
             cfg_data["OPTIMIZATION"]["NUM_EPOCHS"] = 110  # +20 # +30 epochs for testing
-            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 12
+            cfg_data['OPTIMIZATION']['BATCH_SIZE_PER_GPU'] = 10
             cfg_data['OPTIMIZATION']['LR'] = 0.0006     #0.0006  # 0.003
 
 
@@ -593,8 +646,8 @@ def cfg_train_model_update(path_manager, model, print_cfg):
 # 2 modes: Initial train and loop. MODE_INITIAL_TRAIN = True --> MODE 1
 # MODE 1
 def mode_1():
-    FLAG_CREATE_AUTOLABEL_INFOS = True
-    FLAG_TRAIN = False
+    FLAG_CREATE_AUTOLABEL_INFOS = False
+    FLAG_TRAIN = True
 
     if FLAG_CREATE_AUTOLABEL_INFOS:
         cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True,  eval_on_val=False)
@@ -615,10 +668,10 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
     # Set up pipeline for evaluation on kitti eval dataset.
     def mode_2_eval_on_val(cfg_autolabel, path_manager, models):
 
-        FLAG_RESET_PSEUDO_LABEL_FOLDERS = False
-        FLAG_PREDICT_OBJECTS = False
+        FLAG_RESET_PSEUDO_LABEL_FOLDERS = True
+        FLAG_PREDICT_OBJECTS = True
         FLAG_VOTE_PSEUDO_LABELS = False
-        FLAG_COMPUTE_EVALUATION_METRICS = True
+        FLAG_COMPUTE_EVALUATION_METRICS = False
 
         print("--> Semi-supervised pseudo-labeling pipeline. Mode: Loop. EVAL ON KITTI VALIDATION SET")
         print(f"Project selected: {cfg_autolabel.DATA.PROJECT.AUTOLABEL_DATA}")
@@ -652,7 +705,7 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
 
         FLAG_RESET_PSEUDO_LABEL_FOLDERS = False
         FLAG_PREDICT_OBJECTS = False
-        FLAG_VOTE_PSEUDO_LABELS = False
+        FLAG_VOTE_PSEUDO_LABELS = True
         FLAG_COMPUTE_EVALUATION_METRICS = True
         FLAG_CONVERT_PSEUDO_LABELS = False
         FLAG_BACKUP_OG_TRAIN = False
@@ -674,9 +727,12 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
             for model in models:
                 print("-> predict objects for: ", model)
                 predict_objects(working_path, path_manager, model)
+            if opt['RESTRICT_TO_KITTI_FOV']:
+                restrict_to_KITTI_fov(cfg_autolabel, path_manager)
 
         if FLAG_VOTE_PSEUDO_LABELS:
             main_pseudo_label(cfg_autolabel, 10000, False, 0)
+
 
         if FLAG_COMPUTE_EVALUATION_METRICS:
             if cfg_autolabel.PIPELINE.COMPUTE_EVALUATION_METRICS:
@@ -690,7 +746,7 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
             backup_original_training_data(path_manager)
 
         if FLAG_UPDATE_TRAINSET:
-            update_trainset(path_manager, include_og_train_data=True)
+            update_trainset(path_manager, include_og_train_data=False)
 
         if FLAG_CREATE_AUTOLABEL_INFOS:
             #cfg_dataset_update(cfg_autolabel, path_manager, print_cfg=True,  eval_on_val=False)
@@ -726,10 +782,13 @@ def mode_2(cfg_autolabel, path_manager, models, opt):
 
 opt = { # Select the mode MODE_INITIAL_TRAIN/ TRAIN_ITERATION
         'MODE_INITIAL_TRAIN': False,
+        # Select if the pseudo-label range should be restricted to KITTI front camera fov (approximation)
+        'RESTRICT_TO_KITTI_FOV': True,
         # Select if eval on kitti validation set or pseudo-labels
-        'EVAL_ON_KITTI_VAL': True,
+        'EVAL_ON_KITTI_VAL': False,
         # Moves model ckpts to /models and /past_iterations. !!only use once after each training iteration!!
         'FLAG_PREPARE_AUTOLABEL_DATA_MODELS_FOLDER': False
+
       }
 
 if __name__ == "__main__":
@@ -738,6 +797,7 @@ if __name__ == "__main__":
     cfg_autolabel = load_config()
     # Load path manager to access paths easily.
     path_manager = autolabel_path_manager(cfg_autolabel)
+
 
     if cfg_autolabel.PIPELINE.PRINT_INFORMATION:
         print(f"Initial working path: {working_path}")
