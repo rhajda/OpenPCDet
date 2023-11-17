@@ -166,7 +166,7 @@ def get_pseudo_labels_to_df(path_project_evaluation):
     data = pd.DataFrame()
     pseudo_label_list = []
 
-    for file_name in os.listdir(path_manager.get_path("path_pseudo_labels_nms")):
+    for file_name in os.listdir(path_manager.get_path("path_pseudo_labels_majority")):
         if file_name.endswith('.csv'):
             base_name = os.path.splitext(file_name)[0]
             pseudo_label_list.append(base_name)
@@ -178,7 +178,7 @@ def get_pseudo_labels_to_df(path_project_evaluation):
         if count >= 100000:
             break
 
-        label_file = os.path.join(path_manager.get_path("path_pseudo_labels_nms"), (labelfile + '.csv'))
+        label_file = os.path.join(path_manager.get_path("path_pseudo_labels_majority"), (labelfile + '.csv'))
 
         # Check if the CSV file is empty before attempting to read it
         if os.path.getsize(label_file) == 0:

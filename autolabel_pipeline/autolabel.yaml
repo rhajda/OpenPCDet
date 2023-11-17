@@ -91,23 +91,35 @@
 
 
 DATA:
+
+  # EDGAR
+  PATH_POINT_CLOUDS: "/home/data/autolabel_EDGAR/training/velodyne"     # EDGAR
+  PATH_GROUND_TRUTHS: "/home/data/autolabel_EDGAR/training/label_2"     # EDGAR
+
   # KITTI
   #PATH_POINT_CLOUDS: "/home/data/autolabel_kitti/training/velodyne"    # KITTI
   #PATH_GROUND_TRUTHS: "/home/data/autolabel_kitti/original/label_2"    # KITTI
 
   # WAYMO
-  PATH_POINT_CLOUDS: "/home/data/waymo_og/training/velodyne" # Waymo
-  PATH_GROUND_TRUTHS: "/home/data/waymo_og/training/label_2" # Waymo
+  #PATH_POINT_CLOUDS: "/home/data/waymo_og/training/velodyne"           # Waymo
+  #PATH_GROUND_TRUTHS: "/home/data/waymo_og/training/label_2"           # Waymo
 
 
 
   PROJECT:
 
+    # EDGAR
+    DATASET: "data/autolabel_EDGAR"                                     # EDGAR
+    AUTOLABEL_DATA: "autolabel_data/autolabel_EDGAR"                    # EDGAR
+
+    # KITTI
     #DATASET: "data/autolabel_kitti"                                    # KITTI
     #AUTOLABEL_DATA: "autolabel_data/autolabel_kitti"                   # KITTI
 
-    DATASET: "data/autolabel_waymo"                                 # Waymo
-    AUTOLABEL_DATA: "autolabel_data/autolabel_waymo_nms"                # Waymo
+    # Waymo
+    #DATASET: "data/autolabel_waymo"                                    # Waymo
+    #AUTOLABEL_DATA: "autolabel_data/autolabel_waymo_nms"               # Waymo
+
 
     CFG_DATASET: "tools/cfgs/dataset_configs/autolabel_dataset.yaml"
     CFG_MODELS: "tools/cfgs/autolabel_models"
@@ -119,7 +131,7 @@ PIPELINE:
   SHOW_POINT_CLOUDS: False
   PRINT_INFORMATION: False
   COMPUTE_EVALUATION_METRICS: True
-  VOTING_SCHEME: 'NMS'
+  VOTING_SCHEME: 'MAJORITY'
   CLASSES: [ 'Car', 'Pedestrian', 'Cyclist' ]
 
   NMS_VOTING:
@@ -135,17 +147,17 @@ PIPELINE:
       THRESHOLD_IOU: 0.4
       THRESHOLD_HEADING: 30
       THRESHOLD_3_BBOXES:
+        CONFIDENCE_CAR: 0.3
+        CONFIDENCE_CYCLIST: 0.3
+        CONFIDENCE_PEDESTRIAN: 0.3
+      THRESHOLD_2_BBOXES:
         CONFIDENCE_CAR: 0.4
         CONFIDENCE_CYCLIST: 0.4
         CONFIDENCE_PEDESTRIAN: 0.4
-      THRESHOLD_2_BBOXES:
+      THRESHOLD_1_BBOX:
         CONFIDENCE_CAR: 0.5
         CONFIDENCE_CYCLIST: 0.5
         CONFIDENCE_PEDESTRIAN: 0.5
-      THRESHOLD_1_BBOX:
-        CONFIDENCE_CAR: 0.6
-        CONFIDENCE_CYCLIST: 0.6
-        CONFIDENCE_PEDESTRIAN: 0.6
 
 
     # LOW
@@ -187,6 +199,6 @@ PIPELINE:
 
 
 VISUALISATION:
-  BBOXES_TO_LOAD: ['groundtruths', 'pseudo_labels']
-  #BBOXES_TO_LOAD: ['groundtruths', 'pseudo_labels']
+  #BBOXES_TO_LOAD: ['pointrcnn', 'pointpillar', 'second']
+  BBOXES_TO_LOAD: ['groundtruths']
   POINT_CLOUD_ID_TO_VISUALIZE: ''

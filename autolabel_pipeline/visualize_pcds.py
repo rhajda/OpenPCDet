@@ -359,7 +359,7 @@ def visualize_single_pcd(single_pcd, bbox_source, cfg, path_manager):
             print("Pseudo_labels (green), ID ", single_pcd, ": ", pseudo_label_labels)
             # print("Pseudo_label ID: ", pseudo_label_file)
 
-    #pcd.paint_uniform_color([0.7, 0.7, 0.7])
+    pcd.paint_uniform_color([0.7, 0.7, 0.7])
     vis.add_geometry(pcd)
     for box in boxes_3d:
         vis.add_geometry(box)

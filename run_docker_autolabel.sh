@@ -16,6 +16,7 @@ docker run --rm -it --gpus "device=$gpu" --network=host -e DISPLAY=$DISPLAY \
   -v /mnt/Autolabelling/KITTI/training/velodyne:/home/data/autolabel_transfer/training/velodyne \
   -v /mnt/Autolabelling/KITTI/training/velodyne:/home/data/autolabel_show/training/velodyne \
   -v /mnt/Autolabelling/KITTI/training/velodyne:/home/data/autolabel_kitti/training/velodyne \
+  -v /mnt/Autolabelling/edgar_dataset/rosbag2_2023_09_29-14_40_51_pcd/pcd:/home/data/autolabel_EDGAR/training/velodyne \
   -v /home/ubuntu/Loic/trained_models/models_kitti:/home/output \
   -v /home/ubuntu/Loic/openpcdet_autolabel/tools/cfgs/autolabel_models:/home/tools/cfgs/autolabel_models \
   -v /home/ubuntu/Loic/openpcdet_autolabel/autolabel_data/:/home/autolabel_data \
