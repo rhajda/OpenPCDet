@@ -208,7 +208,7 @@ def get_pseudo_labels_to_df(path_project_evaluation):
     class_info('Car', data, path_project_evaluation)
     #scatter_plot('Car', data, path_project_evaluation)
     # Ped
-    #class_info('Pedestrian', data, path_project_evaluation)
+    class_info('Pedestrian', data, path_project_evaluation)
     # scatter_plot('Pedestrian', data, path_project_evaluation)
     # Cycl.
     #class_info('Cyclist', data, path_project_evaluation)

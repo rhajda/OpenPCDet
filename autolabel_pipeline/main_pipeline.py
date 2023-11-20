@@ -796,7 +796,7 @@ def mode_2(cfg_autolabel, path_manager, models, opt, modules):
 
 # !! FLAG_PREPARE_MODELS_FOLDER: only use once after each training iteration !!
 opt = {
-        'FLAG_PREPARE_MODELS_FOLDER': False,   # Moves model ckpts to ../models and ../past_iterations.
+        'FLAG_PREPARE_MODELS_FOLDER': False,    # Moves model ckpts to ../models and ../past_iterations.
         'MODE_INITIAL_TRAIN': False,           # Select the mode MODE_INITIAL_TRAIN/ TRAIN_ITERATION
 
         '360_DEGREE_PSEUDO_LABELS': True,      # Pseudo-label data in 360 degree fov. Else: [0, -40, -3, 70.4, 40, 1]
@@ -806,14 +806,14 @@ opt = {
 
 modules = {
             'FLAG_RESET_PSEUDO_LABEL_FOLDERS': False,
-            'FLAG_PREDICT_OBJECTS': False,
-            'FLAG_VOTE_PSEUDO_LABELS': False,
+            'FLAG_PREDICT_OBJECTS': True,
+            'FLAG_VOTE_PSEUDO_LABELS': True,
             'FLAG_COMPUTE_EVALUATION_METRICS': False,
             'FLAG_CONVERT_PSEUDO_LABELS': False,
             'FLAG_BACKUP_OG_TRAIN': False,
             'FLAG_UPDATE_TRAINSET': False,
             'FLAG_CREATE_AUTOLABEL_INFOS': False,
-            'FLAG_TRAIN': True
+            'FLAG_TRAIN': False
           }
 
 
