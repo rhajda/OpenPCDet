@@ -777,11 +777,11 @@ def mode_2(cfg_autolabel, path_manager, models, opt, modules):
     if opt['FLAG_PREPARE_MODELS_FOLDER']:
         prepare_autolabel_data_models_folder(cfg_autolabel, path_manager)
 
-    # If EVAL_ON_KITTI_VAL == True: Compute performance metrics on kitti val.
-    if opt['EVAL_ON_KITTI_VAL']:
+    # If EVAL_ON_VAL == True: Compute performance metrics on kitti val.
+    if opt['EVAL_ON_VAL']:
         mode_2_eval_on_val(cfg_autolabel, path_manager, models, modules)
 
-    if not opt['EVAL_ON_KITTI_VAL']:
+    if not opt['EVAL_ON_VAL']:
         mode_2_pseudo_label_iteration(cfg_autolabel, path_manager, models, modules)
 
     return
@@ -796,18 +796,18 @@ def mode_2(cfg_autolabel, path_manager, models, opt, modules):
 
 # !! FLAG_PREPARE_MODELS_FOLDER: only use once after each training iteration !!
 opt = {
-        'FLAG_PREPARE_MODELS_FOLDER': False,    # Moves model ckpts to ../models and ../past_iterations.
+        'FLAG_PREPARE_MODELS_FOLDER': False,   # Moves model ckpts to ../models and ../past_iterations.
         'MODE_INITIAL_TRAIN': False,           # Select the mode MODE_INITIAL_TRAIN/ TRAIN_ITERATION
 
         '360_DEGREE_PSEUDO_LABELS': True,      # Pseudo-label data in 360 degree fov. Else: [0, -40, -3, 70.4, 40, 1]
         'RESTRICT_TO_KITTI_FOV': False,        # Select if pseudo-label range should be restricted to KITTI front camera fov (approximation)
-        'EVAL_ON_KITTI_VAL': False             # Select if eval on kitti validation set or pseudo-labels
+        'EVAL_ON_VAL': False                   # Select if eval on kitti validation set or pseudo-label set
       }
 
 modules = {
             'FLAG_RESET_PSEUDO_LABEL_FOLDERS': False,
             'FLAG_PREDICT_OBJECTS': False,
-            'FLAG_VOTE_PSEUDO_LABELS': True,
+            'FLAG_VOTE_PSEUDO_LABELS': False,
             'FLAG_COMPUTE_EVALUATION_METRICS': False,
             'FLAG_CONVERT_PSEUDO_LABELS': False,
             'FLAG_BACKUP_OG_TRAIN': False,

@@ -164,4 +164,4 @@ PIPELINE:
 VISUALISATION:
   #BBOXES_TO_LOAD: ['pointrcnn', 'pointpillar', 'second']
   BBOXES_TO_LOAD: ["pseudo_labels"]
-  POINT_CLOUD_ID_TO_VISUALIZE: ''
+  POINT_CLOUD_ID_TO_VISUALIZE: '001088'

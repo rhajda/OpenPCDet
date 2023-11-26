@@ -235,25 +235,25 @@ GT : Ground Truth
                 PIPELINE.VOTING_SCHEME: --> "NMS" or "MAJORITY"
                 Specify all MAJORITY_VOTING or NMS_VOTING parameters
 
-        - In main_pipeline.py configure as follows for initial iteration:
-            opt = {
-                    'FLAG_PREPARE_MODELS_FOLDER': True,         --- Run ONCE per iteration, moves selected epochs to /autolabel_data/autolabel_XXX/models
-                    'MODE_INITIAL_TRAIN': False,                --- False, as the auto-label iteration is triggered
-                    '360_DEGREE_PSEUDO_LABELS': True,           --- True, if GT labels exist in 360° around the Vehicle.
-                    'RESTRICT_TO_KITTI_FOV': False,             --- False, only used to compare pseudo-labels to KITTI GT.
-                    'EVAL_ON_KITTI_VAL': False                  --- True, only if GT data exists to compare PLs against.
-                  }
+          - In main_pipeline.py configure as follows for initial iteration:
+              opt = {
+                      'FLAG_PREPARE_MODELS_FOLDER': True,         --- Run ONCE per iteration, moves selected epochs to /autolabel_data/autolabel_XXX/models
+                      'MODE_INITIAL_TRAIN': False,                --- False, as the auto-label iteration is triggered
+                      '360_DEGREE_PSEUDO_LABELS': True,           --- True, if GT labels exist in 360° around the Vehicle.
+                      'RESTRICT_TO_KITTI_FOV': False,             --- False, only used to compare pseudo-labels to KITTI GT.
+                      'EVAL_ON_VAL': False                        --- True, only if GT data exists to compare PLs against.
+                    }
 
-            modules = {
-                    'FLAG_RESET_PSEUDO_LABEL_FOLDERS': True,    --- True, resets the /autolabel_XXX/ subfolders where necessary.
-                    'FLAG_PREDICT_OBJECTS': True,               --- True, generates PL proposals and saves them to /autolabel_XXX/predictions/..
-                    'FLAG_VOTE_PSEUDO_LABELS': True,            --- True, votes PLs from proposals and saves them to /autolabel_XXX/predictions/pseudo_labels/..
-                    'FLAG_COMPUTE_EVALUATION_METRICS': False,   --- True, only if GT data exists to compare PLs against.
-                    'FLAG_CONVERT_PSEUDO_LABELS': True,         --- True, converts PLs to correct format for re-training.
-                    'FLAG_BACKUP_OG_TRAIN': True,               --- True, backup of data present in initial iteration.
-                    'FLAG_UPDATE_TRAINSET': True,               --- True, updates the /data/autolabel_XXX/ train files for re-training and output.
-                    'FLAG_CREATE_AUTOLABEL_INFOS': True,        --- True, necessary for pcdet training.
-                    'FLAG_TRAIN': True                          --- True, pcdet training loop.
+              modules = {
+                      'FLAG_RESET_PSEUDO_LABEL_FOLDERS': True,    --- True, resets the /autolabel_XXX/ subfolders where necessary.
+                      'FLAG_PREDICT_OBJECTS': True,               --- True, generates PL proposals and saves them to /autolabel_XXX/predictions/..
+                      'FLAG_VOTE_PSEUDO_LABELS': True,            --- True, votes PLs from proposals and saves them to /autolabel_XXX/predictions/pseudo_labels/..
+                      'FLAG_COMPUTE_EVALUATION_METRICS': False,   --- True, only if GT data exists to compare PLs against.
+                      'FLAG_CONVERT_PSEUDO_LABELS': True,         --- True, converts PLs to correct format for re-training.
+                      'FLAG_BACKUP_OG_TRAIN': True,               --- True, backup of data present in initial iteration.
+                      'FLAG_UPDATE_TRAINSET': True,               --- True, updates the /data/autolabel_XXX/ train files for re-training and output.
+                      'FLAG_CREATE_AUTOLABEL_INFOS': True,        --- True, necessary for pcdet training.
+                      'FLAG_TRAIN': True                          --- True, pcdet training loop.
 
 6) Repeat Auto-label iterations. Adapt Voting parameters in autolabel.yaml according to employed strategy.
 7) Visualize .pcds, pseudo-label proposals as well as voted pseudo-labels with visualize_pcds.py.
