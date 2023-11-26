@@ -806,7 +806,7 @@ opt = {
 
 modules = {
             'FLAG_RESET_PSEUDO_LABEL_FOLDERS': False,
-            'FLAG_PREDICT_OBJECTS': True,
+            'FLAG_PREDICT_OBJECTS': False,
             'FLAG_VOTE_PSEUDO_LABELS': True,
             'FLAG_COMPUTE_EVALUATION_METRICS': False,
             'FLAG_CONVERT_PSEUDO_LABELS': False,

@@ -4,7 +4,7 @@
                                 Developed within the scope of a Master's Thesis.  --
 
                             Developer:
-                            Loïc Stratil
+                            Loïc Stratil (Contact: loic.stratil@tum.de)
                             @ Chair of Automotive Technology, Technical University of Munich
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ GT : Ground Truth
 
     |-- /autolabel_pipeline                             --- Contains all scripts for Auto-label pipeline.
         |-- /Helperfunctions
-            |--                                         --- Old / debugging scripts. Not relevant for Auto-label pipeline.
+            |--                                         --- Backup / debugging scripts. Not relevant for Auto-label pipeline.
 
         |-- /SemiSupervisedLearning                     --- Secondary scripts for Dataset preparation.
             |-- ImageSet_from_files_in_folder.py        --- create ImageSet .txt files from the /label_2 folder.
@@ -94,9 +94,9 @@ GT : Ground Truth
         |-- autolabel.yaml                              --- Central config file for the Auto-label process.
         |-- predict_objects.py                          --- Function generates pseudo-label proposals for all 3 base learners.
         |-- predict_objects.sh                          --- .sh file for proposal generation of a single detector. (for debugging)
-        |-- main_autolabel.py                           --- Function that votes pseudo-labels taking folders with proposals as input.
+        |-- main_autolabel.py                           --- Function that votes pseudo-labels taking folders with proposals as input. Can be triggered driectly if one wants to vote pseudo-labels outside of the pipeline. 
 
-        |-- main_pipeline.py                            ---> Main Auto-label pipeline trigger function (including modes).
+        |-- main_pipeline.py                            ---> Main Auto-label pipeline trigger function (including modes). Contains all modes of autolabel pipeline. Configuration of autolabel pipeline is done within this script and the autolabel.yaml file.
         |-- visualize_pcds.py                           --- PCD and BBOX visualizer (trigger directly). Configurable via autolabel.yaml.
 
         |-- evaluate_labels.py                          --- Outputs performance metrics for the pseudo-labeled data (Code analogous to pcdet + added bounding box dimension evaluation).
