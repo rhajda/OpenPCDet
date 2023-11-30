@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t openpcdet:indy113 .
+DOCKER_BUILDKIT=0 docker build -t openpcdet:indy113 .
