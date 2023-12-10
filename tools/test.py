@@ -90,14 +90,12 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
         result_dir=eval_output_dir, save_to_file=args.save_to_file, vis=args.vis
     )
 
-    result_str = ""
-    header_str = ""
+    result_list = []
+    header_list = []
     for idx, (key, val) in enumerate(sorted(tb_dict.items())):
         tb_log.add_scalar(f"eval_offline/{key}", val, epoch_id)
-        result_str += str(val) + ","
-        header_str += str(key) + ","
-    result_str = result_str[:-1]
-    header_str = header_str[:-1]
+        result_list.append(val)
+        header_list.append(key)
 
     # Save results to csv
     if os.path.getsize(eval_output_dir / 'result.pkl') > 0:
@@ -112,8 +110,8 @@ def eval_single_ckpt(model, test_loader, args, eval_output_dir, logger, epoch_id
         avg_pred_obj = 0.0
     with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
         csv_writer = csv.writer(f)
-        csv_writer.writerow(["epoch_id", header_str, "avg_pred_obj"])
-        csv_writer.writerow([epoch_id, result_str, avg_pred_obj])
+        csv_writer.writerow(["epoch_id", *header_list, "avg_pred_obj"])
+        csv_writer.writerow([epoch_id, *result_list, avg_pred_obj])
 
 
 def get_no_evaluated_ckpt(ckpt_dir, ckpt_record_file, args):
@@ -189,12 +187,11 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
             result_dir=cur_result_dir, save_to_file=args.save_to_file
         )
 
-        result_str = ""
+        result_list = []
         if cfg.LOCAL_RANK == 0:
             for key, val in sorted(tb_dict.items()):
                 tb_log.add_scalar(f"eval_offline/{key}", val, cur_epoch_id)
-                result_str += str(val) + ","
-            result_str = result_str[:-1]
+                result_list.append(val)
 
         # Save results to csv
         if os.path.getsize(cur_result_dir / 'result.pkl') > 0:
@@ -209,7 +206,7 @@ def repeat_eval_ckpt(model, test_loader, args, eval_output_dir, logger, ckpt_dir
             avg_pred_obj = 0.0
         with open(os.path.join(eval_output_dir, "results.csv"), "a") as f:
             csv_writer = csv.writer(f)
-            csv_writer.writerow([cur_epoch_id, result_str, avg_pred_obj])
+            csv_writer.writerow([cur_epoch_id, *result_list, avg_pred_obj])
 
         # record this epoch which has been evaluated
         with open(ckpt_record_file, 'a') as f:
